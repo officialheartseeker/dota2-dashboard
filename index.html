@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Dota 2 · Match Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
 
     :root {
@@ -19,11 +20,12 @@
       --completed: rgba(209, 22, 22, 0.938);
       --text: #e6edf3;
       --muted: #7d8590;
+      --fav: #f59e0b;
     }
     * { margin:0; padding:0; box-sizing:border-box; }
     .team-link {
-    color: inherit;
-    text-decoration: none;
+      color: inherit;
+      text-decoration: none;
     }
     .team-link:hover {
       text-decoration: underline;
@@ -34,92 +36,89 @@
       font-family: 'IBM Plex Mono', monospace;
       min-height: 100vh;
       padding: 1.5rem;
-      /* Grid layout — lägg till fler widgets bredvid varandra */
       display: grid;
-      grid-template-columns: 20% 1fr;
+      grid-template-columns: 30% 1fr;
       grid-template-rows: auto;
       gap: 1.25rem;
       align-items: start;
     }
-    
+
     /* ── STREAM PANEL ── */
-      .stream-panel {
-        background: var(--surface);
-        border: 1px solid #9147ff44;
-        border-radius: 6px;
-        overflow: hidden;
-        display: flex;
-        flex-direction: column;
-      }
-      .stream-panel.hidden {
-        display: none;
-      }
-      .stream-header {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0.5rem 1rem;
-        background: var(--card);
-        border-bottom: 1px solid var(--border);
-      }
-      .stream-info {
-        display: flex;
-        align-items: center;
-        gap: 0.6rem;
-        min-width: 0;
-      }
-      .stream-live-dot {
-        width: 8px; height: 8px;
-        border-radius: 50%;
-        background: #9147ff;
-        animation: blink 1.2s step-end infinite;
-        flex-shrink: 0;
-      }
-      .stream-label {
-        font-family: 'Rajdhani', sans-serif;
-        font-size: 0.85rem;
-        font-weight: 700;
-        letter-spacing: 0.06em;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-      }
-      .stream-actions {
-        display: flex;
-        gap: 0.4rem;
-        flex-shrink: 0;
-      }
-      .stream-actions button {
-        background: none;
-        border: 1px solid var(--border);
-        color: var(--muted);
-        cursor: pointer;
-        padding: 0.25rem 0.6rem;
-        border-radius: 3px;
-        font-size: 0.65rem;
-        font-family: 'IBM Plex Mono', monospace;
-        transition: all 0.15s;
-      }
-      .stream-actions button:hover {
-        border-color: #9147ff;
-        color: var(--text);
-      }
-      .stream-panel iframe {
-        width: 100%;
-        height: 600px;              /* ← ändra här för att justera höjden */
-        border: none;
-        display: block;
-      }
-      .stream-panel.fullscreen {
-        position: fixed;
-        top: 0; left: 0; right: 0; bottom: 0;
-        z-index: 9999;
-        border-radius: 0;
-        grid-column: auto;
-      }
-      .stream-panel.fullscreen iframe {
-        height: calc(100vh - 42px);  /* fill screen minus header */
-      }
+    .stream-panel {
+      background: var(--surface);
+      border: 1px solid #9147ff44;
+      border-radius: 6px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+    .stream-panel.hidden { display: none; }
+    .stream-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.5rem 1rem;
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+    }
+    .stream-info {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      min-width: 0;
+    }
+    .stream-live-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #9147ff;
+      animation: blink 1.2s step-end infinite;
+      flex-shrink: 0;
+    }
+    .stream-label {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.85rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .stream-actions {
+      display: flex;
+      gap: 0.4rem;
+      flex-shrink: 0;
+    }
+    .stream-actions button {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      cursor: pointer;
+      padding: 0.25rem 0.6rem;
+      border-radius: 3px;
+      font-size: 0.65rem;
+      font-family: 'IBM Plex Mono', monospace;
+      transition: all 0.15s;
+    }
+    .stream-actions button:hover {
+      border-color: #9147ff;
+      color: var(--text);
+    }
+    .stream-panel iframe {
+      width: 100%;
+      height: 600px;
+      border: none;
+      display: block;
+    }
+    .stream-panel.fullscreen {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 9999;
+      border-radius: 0;
+      grid-column: auto;
+    }
+    .stream-panel.fullscreen iframe {
+      height: calc(100vh - 42px);
+    }
     .stream-btn {
       display: block;
       padding: 4px 7px;
@@ -131,11 +130,10 @@
       margin-top: 6px;
       margin: 5 auto;
       transition: background 0.15s;
+      border: none;
+      cursor: pointer;
     }
-
-  .stream-btn:hover {
-    background: #772ce8;
-  }
+    .stream-btn:hover { background: #772ce8; }
 
     /* ── WIDGET-CONTAINER ── */
     .widget {
@@ -203,6 +201,26 @@
     }
     .updated-text strong { color: var(--text); }
 
+    .viewer-count {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      font-size: 0.6rem;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .viewer-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--live);
+      box-shadow: 0 0 4px var(--live);
+      animation: blink 1.5s step-end infinite;
+    }
+    .viewer-count strong {
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+    }
+
     .icon-btn {
       background: transparent;
       border: 1px solid var(--border);
@@ -219,12 +237,35 @@
     .icon-btn.spinning .spin-icon { display: inline-block; animation: spin 0.6s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* ── TOOLBAR (filter + favorites) ── */
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .toolbar select {
+      background: var(--card);
+      color: var(--text);
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      padding: 0.2rem 0.4rem;
+      font-size: 0.6rem;
+      font-family: 'IBM Plex Mono', monospace;
+      cursor: pointer;
+      flex: 1;
+      min-width: 0;
+    }
+    .toolbar select:focus { outline: none; border-color: var(--accent); }
+
     /* ── MATCH LIST ── */
     .widget-body { padding: 0.75rem; }
 
     .match-row {
       display: grid;
-      grid-template-columns: 1fr auto;
+      grid-template-columns: 1fr 140px;
       align-items: center;
       gap: 0.3rem;
       padding: 0.4rem 0.5rem;
@@ -234,9 +275,10 @@
       position: relative;
       transition: background 0.15s, border-color 0.15s;
       animation: fadeIn 0.3s ease both;
+      cursor: pointer;
     }
     .match-row:last-child { margin-bottom: 0; }
-    .match-row:hover { background: rgba(255,255,255,0.025); }
+    .match-row:hover { background: rgba(255,255,255,0.04); }
     .match-row.is-live {
       border-color: rgba(34,197,94,0.2);
       background: rgba(34,197,94,0.03);
@@ -248,18 +290,20 @@
       width: 2px;
       border-radius: 2px 0 0 2px;
     }
-       .match-row.is-completed {
+    .match-row.is-completed {
       border-color: rgba(224, 20, 20, 0.2);
       background: rgba(34,197,94,0.03);
     }
-       .match-row.is-upcoming {
+    .match-row.is-upcoming {
       border-color: rgb(93, 97, 36);
       background: rgba(34,197,94,0.03);
     }
     .match-row.is-live::before { background: var(--live); }
     .match-row.is-upcoming::before { background: var(--upcoming); }
     .match-row.is-completed::before { background: var(--completed); }
-
+    .match-row.is-fav {
+      box-shadow: inset 0 0 0 1px rgba(245,158,11,0.15);
+    }
 
     @keyframes fadeIn { from { opacity:0; transform:translateX(-6px); } to { opacity:1; transform:translateX(0); } }
 
@@ -283,13 +327,9 @@
       text-overflow: ellipsis;
     }
     .team-name.tbd { color: var(--muted); font-style: italic; font-weight: 400; }
-      .team-name.left {
-        text-align: right;
-      }
-
-      .team-name.right {
-        text-align: left;
-      }
+    .team-name.left { text-align: right; }
+    .team-name.right { text-align: left; }
+    .team-name.is-fav { color: var(--fav); }
 
     .score-center {
       display: flex;
@@ -325,11 +365,19 @@
     @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
     .time-tag { font-size: 0.6rem; color: var(--muted); }
     .time-tag.soon { color: var(--accent2); }
+    .countdown { font-variant-numeric: tabular-nums; }
     .tourn-tag {
       font-size: 0.55rem; color: var(--muted);
-      max-width: none;
+      max-width: 140px;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
       text-align: right;
+    }
+    .bo-tag {
+      font-size: 0.5rem;
+      color: var(--muted);
+      background: rgba(255,255,255,0.04);
+      padding: 0.05rem 0.3rem;
+      border-radius: 2px;
     }
     .stream-dot {
       width: 6px; height: 6px;
@@ -337,8 +385,21 @@
       background: #9147ff;
       cursor: pointer;
       flex-shrink: 0;
-      title: "Stream available";
     }
+
+    /* Fav star */
+    .fav-btn {
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 0.7rem;
+      color: var(--border);
+      padding: 0;
+      line-height: 1;
+      transition: color 0.15s, transform 0.15s;
+    }
+    .fav-btn:hover { color: var(--fav); transform: scale(1.2); }
+    .fav-btn.active { color: var(--fav); }
 
     /* Dismiss button */
     .dismiss-btn {
@@ -378,6 +439,90 @@
     .live-section .cnt { background: rgba(34,197,94,0.12); color: var(--live); }
     .upcoming-section .cnt { background: rgba(59,130,246,0.12); color: var(--upcoming); }
 
+    /* ── MATCH DETAIL PANEL ── */
+    .detail-panel {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 1rem;
+      margin-top: 0.5rem;
+      animation: fadeIn 0.25s ease;
+    }
+    .detail-panel.hidden { display: none; }
+    .detail-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.75rem;
+      padding-bottom: 0.5rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .detail-header h3 {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .detail-close {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      cursor: pointer;
+      padding: 0.15rem 0.5rem;
+      border-radius: 3px;
+      font-size: 0.6rem;
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    .detail-close:hover { border-color: var(--accent); color: var(--text); }
+    .rosters {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+    }
+    .roster {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+    .roster-title {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--text);
+      padding-bottom: 0.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .roster-title img {
+      width: 16px; height: 16px;
+      object-fit: contain;
+    }
+    .roster-player {
+      font-size: 0.65rem;
+      color: var(--muted);
+      padding: 0.15rem 0;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+    .roster-player .role {
+      font-size: 0.5rem;
+      color: var(--border);
+      min-width: 1.5rem;
+    }
+    .roster-player .nick {
+      color: var(--text);
+      font-weight: 500;
+    }
+    .roster-loading {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.65rem;
+      padding: 1rem;
+    }
+
     /* States */
     .loading-state {
       display: flex; align-items: center; justify-content: center;
@@ -404,6 +549,23 @@
       border: 1px solid rgba(200,57,43,0.2);
       line-height: 1.6;
     }
+
+    /* ── RESPONSIVE ── */
+    @media (max-width: 900px) {
+      body {
+        grid-template-columns: 1fr;
+        padding: 0.75rem;
+      }
+      .stream-panel iframe { height: 300px; }
+      .stream-panel.fullscreen iframe { height: calc(100vh - 42px); }
+    }
+    @media (max-width: 500px) {
+      .widget-header { padding: 0.6rem 0.75rem; }
+      .match-row { grid-template-columns: 1fr 100px; }
+      .match-meta { width: 100px; }
+      .tourn-tag { max-width: 100px; }
+      .team-name { font-size: 0.7rem; }
+    }
   </style>
 </head>
 <body>
@@ -416,17 +578,38 @@
         <div class="widget-label">Dota <span>2</span> · Matches</div>
       </div>
       <div class="widget-actions">
+        <div class="viewer-count" id="viewer-count">
+          <div class="viewer-dot"></div>
+          <strong id="viewer-num">-</strong> viewing
+        </div>
         <div class="updated-text" id="updated-text">—</div>
         <button class="icon-btn" onclick="loadMatches()" id="refresh-btn">
           <span class="spin-icon">↻</span> Refresh
         </button>
       </div>
     </div>
+    <!-- Toolbar: tournament filter -->
+    <div class="toolbar">
+      <select id="tourn-filter" onchange="applyFilter()">
+        <option value="">All tournaments</option>
+      </select>
+    </div>
     <div class="widget-body" id="match-body">
       <div class="loading-state"><div class="loader"></div>Fetching matches...</div>
     </div>
+    <!-- Match detail panel -->
+    <div class="detail-panel hidden" id="detail-panel">
+      <div class="detail-header">
+        <h3 id="detail-title">Match Details</h3>
+        <button class="detail-close" onclick="closeDetail()">✕ Close</button>
+      </div>
+      <div id="detail-content">
+        <div class="roster-loading"><div class="loader" style="display:inline-block;vertical-align:middle;margin-right:0.5rem;width:14px;height:14px;"></div> Loading rosters...</div>
+      </div>
+    </div>
   </div>
-    <!-- STREAM PANEL -->
+
+  <!-- STREAM PANEL -->
   <div id="stream-panel" class="stream-panel hidden">
     <div class="stream-header">
       <div class="stream-info">
@@ -434,8 +617,8 @@
         <span class="stream-label" id="stream-label">Watching...</span>
       </div>
       <div class="stream-actions">
-        <button onclick="toggleFullscreen()">⛶ Fullscreen</button>
-        <button onclick="closeStream()">✕ Close</button>
+        <button onclick="toggleFullscreen()">&#x26F6; Fullscreen</button>
+        <button onclick="closeStream()">&#x2715; Close</button>
       </div>
     </div>
     <iframe id="stream-frame" src="" allowfullscreen></iframe>
@@ -443,16 +626,64 @@
 
 <script>
   const API = 'https://liquipedia.net/dota2/api.php?action=parse&page=Main_Page&prop=text&format=json&origin=*';
+  const TEAM_API = 'https://liquipedia.net/dota2/api.php?action=parse&page={TEAM}&prop=text&format=json&origin=*';
 
+  // ── State ──
   let dismissed = new Set(JSON.parse(sessionStorage.getItem('d2_dismissed') || '[]'));
+  let favorites = new Set(JSON.parse(localStorage.getItem('d2_favorites') || '[]'));
+  let allMatches = [];
+  let activeFilter = '';
+  let previousLiveIds = new Set();
+  let notificationsEnabled = false;
+  let countdownInterval = null;
+  let rosterCache = {};
+
   function saveDismissed() {
     sessionStorage.setItem('d2_dismissed', JSON.stringify([...dismissed]));
+  }
+  function saveFavorites() {
+    localStorage.setItem('d2_favorites', JSON.stringify([...favorites]));
   }
 
   function matchId(m) {
     return m.t1 + '|' + m.t2 + '|' + (m.dateISO || '');
   }
 
+  function isFav(teamName) {
+    return favorites.has(teamName.toLowerCase());
+  }
+  function matchHasFav(m) {
+    return isFav(m.t1) || isFav(m.t2);
+  }
+  function toggleFav(team, event) {
+    event.stopPropagation();
+    const key = team.toLowerCase();
+    if (favorites.has(key)) favorites.delete(key);
+    else favorites.add(key);
+    saveFavorites();
+    renderCurrent();
+  }
+
+  // ── Notifications ──
+  function enableNotifications() {
+    if ('Notification' in window) {
+      Notification.requestPermission().then(p => {
+        notificationsEnabled = (p === 'granted');
+      });
+    }
+  }
+  enableNotifications();
+
+  function notifyLive(m) {
+    if (!notificationsEnabled) return;
+    new Notification('Dota 2 Match Live!', {
+      body: m.t1 + ' vs ' + m.t2 + (m.tourn ? ' — ' + m.tourn : ''),
+      icon: 'https://liquipedia.net/commons/images/d/dc/Dota2_icon.png',
+      tag: matchId(m)
+    });
+  }
+
+  // ── Time formatting ──
   function formatTime(iso) {
     if (!iso) return null;
     const d = new Date(iso);
@@ -477,12 +708,23 @@
     });
   }
 
+  function formatCountdown(iso) {
+    if (!iso) return '';
+    const diff = new Date(iso) - new Date();
+    if (diff <= 0 || diff > 86400000) return '';
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    return (h > 0 ? h + 'h ' : '') + String(m).padStart(2, '0') + 'm ' + String(s).padStart(2, '0') + 's';
+  }
+
   function isSoon(iso) {
     if (!iso) return false;
     const diff = new Date(iso) - new Date();
     return diff > 0 && diff < 1800000;
   }
 
+  // ── Parse ──
   function parseMatches(html) {
     const tmp = document.createElement('div');
     tmp.innerHTML = html;
@@ -509,7 +751,20 @@
 
       const tourn = card.querySelector('.match-info-tournament-name')?.textContent?.trim() || '';
 
-      // Extract stream links from .match-info-links
+      // Best-of format
+      const boEl = card.querySelector('.match-info-best-of, .match-info-bo');
+      let bestOf = '';
+      if (boEl) {
+        bestOf = boEl.textContent.trim();
+      } else if (hasScore) {
+        const total = s1Num + s2Num;
+        const max = Math.max(s1Num, s2Num);
+        if (max >= 3) bestOf = 'BO5';
+        else if (max >= 2) bestOf = 'BO3';
+        else if (total === 1) bestOf = 'BO1';
+      }
+
+      // Extract stream links
       let stream = null;
       const twitchEl = card.querySelector('a[href*="Special:Stream/twitch"]');
       const youtubeEl = card.querySelector('a[href*="Special:Stream/youtube"]');
@@ -517,8 +772,6 @@
       if (twitchEl) {
         const tm = (twitchEl.getAttribute('href') || '').match(/Stream\/twitch\/([^"&?\/]+)/);
         if (tm) {
-          // Liquipedia channel names may differ from actual Twitch names
-          // Use known mappings, fallback to extracted name
           const channelMap = {
             'ESL_Dota_2': 'esl_dota2'
           };
@@ -532,60 +785,61 @@
 
       const now = new Date();
       const matchDate = dateISO ? new Date(dateISO) : null;
-
       const diffPast = matchDate ? (now - matchDate) : null;
       const diffFuture = matchDate ? (matchDate - now) : null;
 
-      // ------------------------
-      // ✅ NEW RELIABLE LOGIC
-      // ------------------------
-
       const isUpcoming = matchDate && diffFuture > 0;
-
-      // LIVE → started, not too old, and not clearly finished
       const isLive =
         matchDate &&
         diffPast >= 0 &&
-        diffPast < 6 * 60 * 60 * 1000 && // allow longer series
-        (
-          !hasScore ||                  // no score yet
-          s1Num === s2Num ||            // tied
-          Math.abs(s1Num - s2Num) <= 1  // ongoing series (1-0, 2-1 etc)
-        );
+        diffPast < 6 * 60 * 60 * 1000 &&
+        (!hasScore || s1Num === s2Num || Math.abs(s1Num - s2Num) <= 1);
 
-      // COMPLETED → must NOT be live AND has score AND enough time passed
       const isCompleted =
         hasScore &&
         matchDate &&
-        diffPast > 60 * 60 * 1000 && // give more buffer (1h)
+        diffPast > 60 * 60 * 1000 &&
         !isLive;
 
-      // Skip old entries (keep completed for 3 days)
       if (matchDate && diffPast > 3 * 24 * 60 * 60 * 1000) return;
 
       const key = t1 + '|' + t2 + '|' + (ts || '');
       if (seen.has(key)) return;
       seen.add(key);
 
-      matches.push({
-        t1, t2,
-        s1, s2,
-        dateISO,
-        tourn,
-        stream,
-        isLive,
-        isCompleted,
-        isUpcoming
-      });
+      matches.push({ t1, t2, s1, s2, dateISO, tourn, stream, bestOf, isLive, isCompleted, isUpcoming });
     });
 
     return matches;
   }
 
-  function dismissMatch(id) {
+  // ── Favorites sort ──
+  function sortWithFavorites(matches) {
+    return [...matches].sort((a, b) => {
+      const af = matchHasFav(a) ? 0 : 1;
+      const bf = matchHasFav(b) ? 0 : 1;
+      return af - bf;
+    });
+  }
+
+  // ── Tournament filter ──
+  function populateFilter(matches) {
+    const sel = document.getElementById('tourn-filter');
+    const current = sel.value;
+    const tourns = [...new Set(matches.map(m => m.tourn).filter(Boolean))].sort();
+    sel.innerHTML = '<option value="">All tournaments</option>' +
+      tourns.map(t => `<option value="${t}" ${t === current ? 'selected' : ''}>${t}</option>`).join('');
+  }
+  function applyFilter() {
+    activeFilter = document.getElementById('tourn-filter').value;
+    renderCurrent();
+  }
+
+  // ── Dismiss ──
+  function dismissMatch(id, event) {
+    event.stopPropagation();
     dismissed.add(id);
     saveDismissed();
-
     const el = document.querySelector('[data-match-id="' + CSS.escape(id) + '"]');
     if (el) {
       el.style.transition = 'opacity 0.2s, max-height 0.3s';
@@ -593,16 +847,16 @@
       el.style.maxHeight = '0';
       setTimeout(() => el.remove(), 300);
     }
-    }
-  function openStream(url, matchLabel) {
+  }
+
+  // ── Stream ──
+  function openStream(url, matchLabel, event) {
+    if (event) event.stopPropagation();
     const panel = document.getElementById('stream-panel');
     const frame = document.getElementById('stream-frame');
     const label = document.getElementById('stream-label');
 
     const channel = url.split('/').pop();
-
-    // Use localhost as parent — file must be served via local server
-    // e.g.:  python -m http.server 8000
     const host = location.hostname || 'officialheartseeker.github.io';
 
     label.textContent = matchLabel || ('Stream: ' + channel);
@@ -612,8 +866,7 @@
   }
 
   function toggleFullscreen() {
-    const panel = document.getElementById('stream-panel');
-    panel.classList.toggle('fullscreen');
+    document.getElementById('stream-panel').classList.toggle('fullscreen');
   }
 
   function closeStream() {
@@ -623,12 +876,131 @@
     panel.classList.remove('fullscreen');
     panel.classList.add('hidden');
   }
+
+  // ── Match detail / rosters ──
+  function openDetail(m) {
+    const panel = document.getElementById('detail-panel');
+    const title = document.getElementById('detail-title');
+    const content = document.getElementById('detail-content');
+
+    title.textContent = m.t1 + ' vs ' + m.t2 + (m.tourn ? ' — ' + m.tourn : '');
+    content.innerHTML = '<div class="roster-loading"><div class="loader" style="display:inline-block;vertical-align:middle;margin-right:0.5rem;width:14px;height:14px;"></div> Loading rosters...</div>';
+    panel.classList.remove('hidden');
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+    Promise.all([
+      fetchRoster(m.t1),
+      fetchRoster(m.t2)
+    ]).then(([r1, r2]) => {
+      content.innerHTML = `<div class="rosters">
+        <div class="roster">
+          <div class="roster-title">${m.t1}</div>
+          ${renderRoster(r1)}
+        </div>
+        <div class="roster">
+          <div class="roster-title">${m.t2}</div>
+          ${renderRoster(r2)}
+        </div>
+      </div>`;
+    });
+  }
+
+  function closeDetail() {
+    document.getElementById('detail-panel').classList.add('hidden');
+  }
+
+  function fetchRoster(teamName) {
+    if (teamName === 'TBD') return Promise.resolve([]);
+    if (rosterCache[teamName]) return Promise.resolve(rosterCache[teamName]);
+
+    const url = TEAM_API.replace('{TEAM}', encodeURIComponent(teamName.replace(/ /g, '_')));
+    return fetch(url)
+      .then(r => r.json())
+      .then(data => {
+        const html = data?.parse?.text?.['*'];
+        if (!html) return [];
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+
+        const players = [];
+        // Look for the roster/player table
+        const rows = tmp.querySelectorAll('.roster-card .roster-card-entry, table.roster-card tr, .team-template-team-roster tr, .wikitable tr');
+        const roleLabels = ['1', '2', '3', '4', '5', 'C'];
+        let roleIdx = 0;
+
+        // Try parsing active roster table
+        tmp.querySelectorAll('.roster-card').forEach(card => {
+          card.querySelectorAll('.roster-card-entry').forEach(entry => {
+            const nick = entry.querySelector('.roster-card-entry-name a, .roster-card-entry-name')?.textContent?.trim();
+            const role = entry.querySelector('.roster-card-entry-position')?.textContent?.trim();
+            if (nick) players.push({ nick, role: role || '' });
+          });
+        });
+
+        // Fallback: try to find player names from infobox
+        if (players.length === 0) {
+          tmp.querySelectorAll('.infobox-cell-bold').forEach(cell => {
+            if (cell.textContent.includes('Player')) {
+              const next = cell.nextElementSibling;
+              if (next) {
+                next.querySelectorAll('a').forEach(a => {
+                  const nick = a.textContent.trim();
+                  if (nick && nick.length < 30) {
+                    players.push({ nick, role: roleLabels[roleIdx] || '' });
+                    roleIdx++;
+                  }
+                });
+              }
+            }
+          });
+        }
+
+        // Fallback: find list items with player IDs
+        if (players.length === 0) {
+          const activeSection = tmp.querySelector('#Active_Roster, #Active_Squad, #Roster');
+          if (activeSection) {
+            let el = activeSection.parentElement?.nextElementSibling;
+            while (el && players.length < 7) {
+              if (el.tagName === 'TABLE' || el.tagName === 'DIV') {
+                el.querySelectorAll('a').forEach(a => {
+                  const txt = a.textContent.trim();
+                  if (txt && txt.length > 1 && txt.length < 25 && !txt.includes(' ') && players.length < 7) {
+                    players.push({ nick: txt, role: roleLabels[players.length] || '' });
+                  }
+                });
+                break;
+              }
+              el = el.nextElementSibling;
+            }
+          }
+        }
+
+        rosterCache[teamName] = players;
+        return players;
+      })
+      .catch(() => []);
+  }
+
+  function renderRoster(players) {
+    if (!players || players.length === 0) {
+      return '<div class="roster-player" style="color:var(--muted);font-style:italic;">Roster unavailable</div>';
+    }
+    return players.slice(0, 7).map(p =>
+      `<div class="roster-player">
+        ${p.role ? `<span class="role">${p.role}</span>` : ''}
+        <span class="nick">${p.nick}</span>
+      </div>`
+    ).join('');
+  }
+
+  // ── Render ──
   function renderMatch(m, i) {
     const id = matchId(m);
     if (dismissed.has(id)) return '';
 
     const timeStr = formatTime(m.dateISO);
     const soon = isSoon(m.dateISO);
+    const hasFav = matchHasFav(m);
 
     let s1 = parseInt(m.s1);
     let s2 = parseInt(m.s2);
@@ -644,37 +1016,46 @@
       scoreHtml = `<span class="vs">vs</span>`;
     }
 
+    // Countdown for soon matches
+    const cdId = soon ? 'cd-' + id.replace(/[^a-zA-Z0-9]/g, '_') : '';
+
     const metaHtml =
-      (m.isLive ? `<span class="live-badge">● LIVE</span>` : '') +
-      (timeStr ? `<span class="time-tag ${soon ? 'soon' : ''}">${timeStr}</span>` : '') +
+      (m.isLive ? `<span class="live-badge">&#9679; LIVE</span>` : '') +
+      (soon && !m.isLive ? `<span class="time-tag soon countdown" id="${cdId}">${formatCountdown(m.dateISO)}</span>` : '') +
+      (!soon && timeStr ? `<span class="time-tag">${timeStr}</span>` : '') +
+      (m.bestOf ? `<span class="bo-tag">${m.bestOf}</span>` : '') +
       (m.tourn ? `<span class="tourn-tag">${m.tourn}</span>` : '') +
-    (m.stream ? `<button class="stream-btn" onclick="openStream('${m.stream}', '${m.t1.replace(/'/g, "\\'")} vs ${m.t2.replace(/'/g, "\\'")}')">▶ Watch</button>` : '')
+      (m.stream ? `<button class="stream-btn" onclick="openStream('${m.stream}', '${m.t1.replace(/'/g, "\\'")} vs ${m.t2.replace(/'/g, "\\'")}', event)">&#9654; Watch</button>` : '');
 
-    const rowClass = m.isLive
-      ? 'is-live'
-      : m.isCompleted
-      ? 'is-completed'
-      : 'is-upcoming';
+    const rowClass = m.isLive ? 'is-live' : m.isCompleted ? 'is-completed' : 'is-upcoming';
+    const favClass = hasFav ? ' is-fav' : '';
 
-  return `
-    <div class="match-row ${rowClass}" data-match-id="${id}">
+    const safeM = encodeURIComponent(JSON.stringify({ t1: m.t1, t2: m.t2, tourn: m.tourn, dateISO: m.dateISO }));
+
+    return `
+    <div class="match-row ${rowClass}${favClass}" data-match-id="${id}" onclick="openDetail(JSON.parse(decodeURIComponent('${safeM}')))">
       <div class="match-teams">
-        <span class="team-name left ${m.t1 === 'TBD' ? 'tbd' : ''}">
-          ${m.t1 !== 'TBD' ? `<a href="https://liquipedia.net/dota2/${encodeURI(m.t1.replace(/ /g, '_'))}" target="_blank" class="team-link">${m.t1}</a>` : m.t1}
+        <span class="team-name left ${m.t1 === 'TBD' ? 'tbd' : ''}${isFav(m.t1) ? ' is-fav' : ''}">
+          <button class="fav-btn ${isFav(m.t1) ? 'active' : ''}" onclick="toggleFav('${m.t1.replace(/'/g, "\\'")}', event)" title="Favorite">&#9733;</button>
+          ${m.t1 !== 'TBD' ? `<a href="https://liquipedia.net/dota2/${encodeURI(m.t1.replace(/ /g, '_'))}" target="_blank" class="team-link" onclick="event.stopPropagation()">${m.t1}</a>` : m.t1}
         </span>
         <div class="score-center">${scoreHtml}</div>
-        <span class="team-name right ${m.t2 === 'TBD' ? 'tbd' : ''}">
-          ${m.t2 !== 'TBD' ? `<a href="https://liquipedia.net/dota2/${encodeURI(m.t2.replace(/ /g, '_'))}" target="_blank" class="team-link">${m.t2}</a>` : m.t2}
+        <span class="team-name right ${m.t2 === 'TBD' ? 'tbd' : ''}${isFav(m.t2) ? ' is-fav' : ''}">
+          ${m.t2 !== 'TBD' ? `<a href="https://liquipedia.net/dota2/${encodeURI(m.t2.replace(/ /g, '_'))}" target="_blank" class="team-link" onclick="event.stopPropagation()">${m.t2}</a>` : m.t2}
+          <button class="fav-btn ${isFav(m.t2) ? 'active' : ''}" onclick="toggleFav('${m.t2.replace(/'/g, "\\'")}', event)" title="Favorite">&#9733;</button>
         </span>
       </div>
-      <div class="match-meta">${metaHtml}<button class="dismiss-btn" onclick="dismissMatch('${id}')">✕</button></div>
+      <div class="match-meta">${metaHtml}<button class="dismiss-btn" onclick="dismissMatch('${id}', event)">&#10005;</button></div>
     </div>
   `;
-}
+  }
+
   function renderAll(matches) {
-    const live = matches.filter(m => m.isLive && !dismissed.has(matchId(m)));
-    const upcoming = matches.filter(m => m.isUpcoming && !dismissed.has(matchId(m)));
-    const completed = matches.filter(m => m.isCompleted && !dismissed.has(matchId(m)));
+    let filtered = activeFilter ? matches.filter(m => m.tourn === activeFilter) : matches;
+
+    const live = sortWithFavorites(filtered.filter(m => m.isLive && !dismissed.has(matchId(m))));
+    const upcoming = sortWithFavorites(filtered.filter(m => m.isUpcoming && !dismissed.has(matchId(m))));
+    const completed = sortWithFavorites(filtered.filter(m => m.isCompleted && !dismissed.has(matchId(m))));
 
     let html = '';
 
@@ -696,13 +1077,29 @@
       html += completed.map(renderMatch).join('');
     }
 
-    if (!html) {
-      return `<div class="empty-state">No matches right now.</div>`;
-    }
-
+    if (!html) return `<div class="empty-state">No matches right now.</div>`;
     return html;
   }
 
+  function renderCurrent() {
+    document.getElementById('match-body').innerHTML = renderAll(allMatches);
+  }
+
+  // ── Countdown ticker ──
+  function startCountdowns() {
+    if (countdownInterval) clearInterval(countdownInterval);
+    countdownInterval = setInterval(() => {
+      allMatches.forEach(m => {
+        if (!isSoon(m.dateISO) || m.isLive) return;
+        const id = matchId(m);
+        const cdId = 'cd-' + id.replace(/[^a-zA-Z0-9]/g, '_');
+        const el = document.getElementById(cdId);
+        if (el) el.textContent = formatCountdown(m.dateISO);
+      });
+    }, 1000);
+  }
+
+  // ── Load ──
   function loadMatches() {
     const btn = document.getElementById('refresh-btn');
     btn.classList.add('spinning');
@@ -716,32 +1113,105 @@
       try {
         const data = JSON.parse(xhr.responseText);
         const html = data?.parse?.text?.['*'];
-
         if (!html) throw new Error('No data');
 
         const matches = parseMatches(html);
 
-        document.getElementById('match-body').innerHTML = renderAll(matches);
+        // Check for new live matches → notify
+        const newLiveIds = new Set(matches.filter(m => m.isLive).map(matchId));
+        matches.forEach(m => {
+          const id = matchId(m);
+          if (m.isLive && !previousLiveIds.has(id) && matchHasFav(m)) {
+            notifyLive(m);
+          }
+        });
+        previousLiveIds = newLiveIds;
+
+        allMatches = matches;
+        populateFilter(matches);
+        renderCurrent();
+        startCountdowns();
+
         document.getElementById('updated-text').innerHTML =
           '<strong>' + new Date().toLocaleTimeString('en-GB') + '</strong>';
 
       } catch (e) {
         document.getElementById('match-body').innerHTML =
-          `<div class="error-state">⚠ ${e.message}</div>`;
+          `<div class="error-state">&#9888; ${e.message}</div>`;
       }
     };
 
     xhr.onerror = function() {
       btn.classList.remove('spinning');
       document.getElementById('match-body').innerHTML =
-        `<div class="error-state">⚠ Network error</div>`;
+        `<div class="error-state">&#9888; Network error</div>`;
     };
 
     xhr.send();
   }
 
+  // ── Keyboard shortcuts ──
+  document.addEventListener('keydown', e => {
+    if (e.key === 'f' || e.key === 'F') {
+      const panel = document.getElementById('stream-panel');
+      if (!panel.classList.contains('hidden')) {
+        e.preventDefault();
+        toggleFullscreen();
+      }
+    }
+    if (e.key === 'Escape') {
+      const stream = document.getElementById('stream-panel');
+      if (stream.classList.contains('fullscreen')) {
+        stream.classList.remove('fullscreen');
+      } else {
+        closeDetail();
+      }
+    }
+  });
+
+  // ── Live viewer counter (Supabase Presence) ──
+  const SUPABASE_URL = 'https://rndqvuwbuvgreimbqvkc.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJuZHF2dXdidXZncmVpbWJxdmtjIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3MTU4OTUsImV4cCI6MjA5MDI5MTg5NX0.zOSPg_kcK8tXBmr63H--BcL5IVJ45YLyUX73S7-M0gE';
+
+  function initViewerCounter() {
+    if (SUPABASE_URL.startsWith('YOUR_')) {
+      document.getElementById('viewer-num').textContent = '-';
+      return;
+    }
+
+    try {
+      const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+      const channel = sb.channel('dashboard-viewers', {
+        config: { presence: { key: crypto.randomUUID() } }
+      });
+
+      channel.on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        const count = Object.keys(state).reduce((sum, key) => sum + state[key].length, 0);
+        document.getElementById('viewer-num').textContent = count;
+      });
+
+      channel.subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({ online_at: new Date().toISOString() });
+        }
+      });
+
+      // Re-track on tab visibility change
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') {
+          channel.track({ online_at: new Date().toISOString() });
+        }
+      });
+    } catch (e) {
+      console.warn('Viewer counter error:', e);
+    }
+  }
+
+  // ── Init ──
   loadMatches();
-  setInterval(loadMatches, 60000);
+  setInterval(loadMatches, 120000); // Auto-refresh every 2 min
+  initViewerCounter();
 </script>
 </body>
 </html>

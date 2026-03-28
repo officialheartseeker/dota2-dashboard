@@ -919,11 +919,18 @@
     const pageName = teamName.replace(/ /g, '_');
     const url = TEAM_API.replace('{TEAM}', encodeURIComponent(pageName));
 
-    return fetch(url)
-      .then(r => {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
-      })
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', url);
+      xhr.onload = function() {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          resolve(data);
+        } catch(e) { reject(e); }
+      };
+      xhr.onerror = () => reject(new Error('Network error'));
+      xhr.send();
+    })
       .then(data => {
         const rawHtml = data?.parse?.text?.['*'];
         if (!rawHtml) return [];

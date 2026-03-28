@@ -319,10 +319,13 @@
       font-family: 'Rajdhani', sans-serif;
       font-size: 0.8rem; font-weight: 700;
       color: var(--text);
-      min-width: 0;
       white-space: nowrap;
+      flex-shrink: 1;
       overflow: hidden;
       text-overflow: ellipsis;
+    }
+    .team-name.tbd {
+      flex-shrink: 0;
     }
     .team-name.tbd { color: var(--muted); font-style: italic; font-weight: 400; }
     .team-name.left { text-align: right; }
@@ -844,9 +847,10 @@
   function openDetail(m, event) {
     if (event) event.stopPropagation();
     const id = matchId(m);
+    const safeId = id.replace(/[^a-zA-Z0-9]/g, '_');
 
     // Toggle off if already open
-    const existing = document.getElementById('roster-' + CSS.escape(id));
+    const existing = document.getElementById('roster-' + safeId);
     if (existing) {
       existing.remove();
       openMatchId = null;
@@ -863,16 +867,15 @@
 
     const detail = document.createElement('div');
     detail.className = 'roster-detail';
-    detail.id = 'roster-' + id;
-    detail.innerHTML = '<div class="roster-loading" style="text-align:center;color:var(--muted);font-size:0.6rem;padding:0.5rem;"><div class="loader" style="display:inline-block;vertical-align:middle;margin-right:0.4rem;width:12px;height:12px;"></div>Loading rosters...</div>';
+    detail.id = 'roster-' + safeId;
+    detail.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:0.6rem;padding:0.5rem;"><div class="loader" style="display:inline-block;vertical-align:middle;margin-right:0.4rem;width:12px;height:12px;"></div>Loading rosters...</div>';
     row.after(detail);
 
     Promise.all([
       fetchRoster(m.t1),
       fetchRoster(m.t2)
     ]).then(([r1, r2]) => {
-      // Check if still open
-      const el = document.getElementById('roster-' + CSS.escape(id));
+      const el = document.getElementById('roster-' + safeId);
       if (!el) return;
       el.innerHTML = `<div class="rosters">
         <div class="roster">
@@ -884,6 +887,9 @@
           ${renderRoster(r2)}
         </div>
       </div>`;
+    }).catch(() => {
+      const el = document.getElementById('roster-' + safeId);
+      if (el) el.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:0.6rem;padding:0.5rem;">Could not load rosters</div>';
     });
   }
 
@@ -896,62 +902,89 @@
     if (teamName === 'TBD') return Promise.resolve([]);
     if (rosterCache[teamName]) return Promise.resolve(rosterCache[teamName]);
 
-    const url = TEAM_API.replace('{TEAM}', encodeURIComponent(teamName.replace(/ /g, '_')));
+    // Liquipedia team pages often use underscores and exact casing
+    const pageName = teamName.replace(/ /g, '_');
+    const url = TEAM_API.replace('{TEAM}', encodeURIComponent(pageName));
+
     return fetch(url)
-      .then(r => r.json())
+      .then(r => {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
       .then(data => {
         const html = data?.parse?.text?.['*'];
         if (!html) return [];
         const tmp = document.createElement('div');
         tmp.innerHTML = html;
 
-        const players = [];
+        let players = [];
 
-        // Find the Active roster heading, then the next table
-        const activeH = tmp.querySelector('h3#Active, [id="Active"]');
+        // Strategy 1: Find h3#Active heading, walk to next .table2
+        const activeH = tmp.querySelector('#Active');
         if (activeH) {
-          // Walk siblings to find the next .table2 div
-          let el = activeH.closest('.mw-heading')?.nextElementSibling || activeH.parentElement?.nextElementSibling;
+          let el = activeH.closest('.mw-heading');
+          if (el) el = el.nextElementSibling;
+          else el = activeH.parentElement?.nextElementSibling;
+
           while (el) {
-            if (el.classList?.contains('table2')) {
-              // Found the active roster table
-              el.querySelectorAll('.table2__row--body').forEach(row => {
+            if (el.classList?.contains('table2') || el.querySelector?.('.table2')) {
+              const table = el.classList?.contains('table2') ? el : el.querySelector('.table2');
+              table.querySelectorAll('tr').forEach(row => {
                 const nickEl = row.querySelector('.inline-player a');
-                const posEl = row.querySelector('td:nth-child(3)');
-                if (nickEl) {
-                  const nick = nickEl.textContent.trim();
-                  const role = posEl?.textContent?.trim() || '';
-                  const country = row.querySelector('.inline-player .flag img')?.getAttribute('alt') || '';
-                  if (nick) players.push({ nick, role, country });
+                const cells = row.querySelectorAll('td');
+                if (nickEl && cells.length >= 3) {
+                  players.push({
+                    nick: nickEl.textContent.trim(),
+                    role: cells[2]?.textContent?.trim() || '',
+                    country: row.querySelector('.flag img')?.getAttribute('alt') || ''
+                  });
                 }
               });
               break;
             }
+            // Stop if we hit another heading
+            if (el.classList?.contains('mw-heading')) break;
             el = el.nextElementSibling;
           }
         }
 
-        // Fallback: search all table2 player rows if Active heading not found
+        // Strategy 2: First .table2 with .inline-player rows
         if (players.length === 0) {
-          const firstTable = tmp.querySelector('.table2.table2--generic');
-          if (firstTable) {
-            firstTable.querySelectorAll('.table2__row--body').forEach(row => {
+          tmp.querySelectorAll('.table2').forEach(table => {
+            if (players.length > 0) return;
+            table.querySelectorAll('tr').forEach(row => {
               const nickEl = row.querySelector('.inline-player a');
-              const posEl = row.querySelector('td:nth-child(3)');
-              if (nickEl) {
-                const nick = nickEl.textContent.trim();
-                const role = posEl?.textContent?.trim() || '';
-                const country = row.querySelector('.inline-player .flag img')?.getAttribute('alt') || '';
-                if (nick) players.push({ nick, role, country });
+              const cells = row.querySelectorAll('td');
+              if (nickEl && cells.length >= 2) {
+                players.push({
+                  nick: nickEl.textContent.trim(),
+                  role: cells[2]?.textContent?.trim() || '',
+                  country: row.querySelector('.flag img')?.getAttribute('alt') || ''
+                });
               }
             });
-          }
+          });
+        }
+
+        // Strategy 3: Any .inline-player links in the page
+        if (players.length === 0) {
+          const seen = new Set();
+          tmp.querySelectorAll('.inline-player a').forEach(a => {
+            const nick = a.textContent.trim();
+            if (nick && nick.length < 25 && !seen.has(nick) && players.length < 7) {
+              seen.add(nick);
+              players.push({ nick, role: '', country: '' });
+            }
+          });
         }
 
         rosterCache[teamName] = players;
         return players;
       })
-      .catch(() => []);
+      .catch(err => {
+        console.warn('Roster fetch failed for', teamName, err);
+        return [];
+      });
   }
 
   function renderRoster(players) {

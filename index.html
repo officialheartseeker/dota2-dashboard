@@ -425,6 +425,20 @@
       font-size: 0.6rem; font-weight: 600;
       letter-spacing: 0.15em; text-transform: uppercase;
       color: var(--muted);
+      cursor: pointer;
+      user-select: none;
+    }
+    .section-divider:hover { color: var(--text); }
+    .section-chevron {
+      font-size: 0.6rem;
+      transition: transform 0.2s;
+      display: inline-block;
+    }
+    .section-divider.collapsed .section-chevron {
+      transform: rotate(-90deg);
+    }
+    .section-matches.collapsed {
+      display: none;
     }
     .section-divider .dot {
       width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0;
@@ -902,7 +916,6 @@
     if (teamName === 'TBD') return Promise.resolve([]);
     if (rosterCache[teamName]) return Promise.resolve(rosterCache[teamName]);
 
-    // Liquipedia team pages often use underscores and exact casing
     const pageName = teamName.replace(/ /g, '_');
     const url = TEAM_API.replace('{TEAM}', encodeURIComponent(pageName));
 
@@ -912,61 +925,74 @@
         return r.json();
       })
       .then(data => {
-        const html = data?.parse?.text?.['*'];
-        if (!html) return [];
+        const rawHtml = data?.parse?.text?.['*'];
+        if (!rawHtml) return [];
         const tmp = document.createElement('div');
-        tmp.innerHTML = html;
+        tmp.innerHTML = rawHtml;
 
         let players = [];
 
-        // Strategy 1: Find h3#Active heading, walk to next .table2
-        const activeH = tmp.querySelector('#Active');
-        if (activeH) {
-          let el = activeH.closest('.mw-heading');
-          if (el) el = el.nextElementSibling;
-          else el = activeH.parentElement?.nextElementSibling;
+        // Find the "Active" section — try multiple selector patterns
+        // The h3 may be bare or wrapped in .mw-heading
+        let activeTable = null;
 
-          while (el) {
-            if (el.classList?.contains('table2') || el.querySelector?.('.table2')) {
-              const table = el.classList?.contains('table2') ? el : el.querySelector('.table2');
-              table.querySelectorAll('tr').forEach(row => {
-                const nickEl = row.querySelector('.inline-player a');
-                const cells = row.querySelectorAll('td');
-                if (nickEl && cells.length >= 3) {
-                  players.push({
-                    nick: nickEl.textContent.trim(),
-                    role: cells[2]?.textContent?.trim() || '',
-                    country: row.querySelector('.flag img')?.getAttribute('alt') || ''
-                  });
-                }
-              });
-              break;
+        // Walk ALL elements and find Active heading, then grab next table
+        const allEls = tmp.querySelectorAll('*');
+        let foundActive = false;
+        for (const el of allEls) {
+          // Check if this is the Active heading
+          if (!foundActive) {
+            if ((el.tagName === 'H3' || el.tagName === 'SPAN' || el.tagName === 'DIV') &&
+                el.id === 'Active') {
+              foundActive = true;
+              continue;
             }
-            // Stop if we hit another heading
-            if (el.classList?.contains('mw-heading')) break;
-            el = el.nextElementSibling;
+            // Also match text content
+            if (el.tagName === 'H3' && el.textContent.trim().startsWith('Active')) {
+              foundActive = true;
+              continue;
+            }
+          }
+          // Once we found Active, look for the table
+          if (foundActive && el.classList?.contains('table2__table')) {
+            activeTable = el;
+            break;
           }
         }
 
-        // Strategy 2: First .table2 with .inline-player rows
-        if (players.length === 0) {
-          tmp.querySelectorAll('.table2').forEach(table => {
-            if (players.length > 0) return;
-            table.querySelectorAll('tr').forEach(row => {
-              const nickEl = row.querySelector('.inline-player a');
-              const cells = row.querySelectorAll('td');
-              if (nickEl && cells.length >= 2) {
-                players.push({
-                  nick: nickEl.textContent.trim(),
-                  role: cells[2]?.textContent?.trim() || '',
-                  country: row.querySelector('.flag img')?.getAttribute('alt') || ''
-                });
-              }
+        // Parse the active roster table
+        if (activeTable) {
+          activeTable.querySelectorAll('tr').forEach(row => {
+            const nickEl = row.querySelector('.inline-player a');
+            if (!nickEl) return;
+            const cells = row.querySelectorAll('td');
+            players.push({
+              nick: nickEl.textContent.trim(),
+              role: cells[2]?.textContent?.trim() || '',
+              country: row.querySelector('.flag img')?.getAttribute('alt') || ''
             });
           });
         }
 
-        // Strategy 3: Any .inline-player links in the page
+        // Fallback: first table2__table with inline-player rows
+        if (players.length === 0) {
+          const tables = tmp.querySelectorAll('.table2__table');
+          for (const table of tables) {
+            table.querySelectorAll('tr').forEach(row => {
+              const nickEl = row.querySelector('.inline-player a');
+              if (!nickEl) return;
+              const cells = row.querySelectorAll('td');
+              players.push({
+                nick: nickEl.textContent.trim(),
+                role: cells[2]?.textContent?.trim() || '',
+                country: row.querySelector('.flag img')?.getAttribute('alt') || ''
+              });
+            });
+            if (players.length > 0) break;
+          }
+        }
+
+        // Final fallback: any .inline-player a on the page (first 7)
         if (players.length === 0) {
           const seen = new Set();
           tmp.querySelectorAll('.inline-player a').forEach(a => {
@@ -1057,6 +1083,38 @@
   `;
   }
 
+  // Track collapsed state
+  let collapsedSections = new Set(JSON.parse(localStorage.getItem('d2_collapsed') || '[]'));
+  function saveCollapsed() { localStorage.setItem('d2_collapsed', JSON.stringify([...collapsedSections])); }
+
+  function toggleSection(section) {
+    const divider = document.querySelector('[data-section="' + section + '"]');
+    const body = document.getElementById('section-' + section);
+    if (!divider || !body) return;
+
+    if (collapsedSections.has(section)) {
+      collapsedSections.delete(section);
+      divider.classList.remove('collapsed');
+      body.classList.remove('collapsed');
+    } else {
+      collapsedSections.add(section);
+      divider.classList.add('collapsed');
+      body.classList.add('collapsed');
+    }
+    saveCollapsed();
+  }
+
+  function renderSection(key, label, cssClass, matches) {
+    if (!matches.length) return '';
+    const isCollapsed = collapsedSections.has(key);
+    return `<div class="section-divider ${cssClass}${isCollapsed ? ' collapsed' : ''}" data-section="${key}" onclick="toggleSection('${key}')">
+        <span class="section-chevron">&#9660;</span>
+        <div class="dot"></div>${label}<span class="cnt">${matches.length}</span><div class="line"></div></div>
+      <div class="section-matches${isCollapsed ? ' collapsed' : ''}" id="section-${key}">
+        ${matches.map(renderMatch).join('')}
+      </div>`;
+  }
+
   function renderAll(matches) {
     let filtered = activeFilter ? matches.filter(m => m.tourn === activeFilter) : matches;
 
@@ -1065,24 +1123,9 @@
     const completed = sortWithFavorites(filtered.filter(m => m.isCompleted && !dismissed.has(matchId(m))));
 
     let html = '';
-
-    if (live.length) {
-      html += `<div class="section-divider live-section">
-        <div class="dot"></div>Live<span class="cnt">${live.length}</span><div class="line"></div></div>`;
-      html += live.map(renderMatch).join('');
-    }
-
-    if (upcoming.length) {
-      html += `<div class="section-divider upcoming-section">
-        <div class="dot"></div>Upcoming<span class="cnt">${upcoming.length}</span><div class="line"></div></div>`;
-      html += upcoming.map(renderMatch).join('');
-    }
-
-    if (completed.length) {
-      html += `<div class="section-divider completed-section">
-        <div class="dot"></div>Completed<span class="cnt">${completed.length}</span><div class="line"></div></div>`;
-      html += completed.map(renderMatch).join('');
-    }
+    html += renderSection('live', 'Live', 'live-section', live);
+    html += renderSection('upcoming', 'Upcoming', 'upcoming-section', upcoming);
+    html += renderSection('completed', 'Completed', 'completed-section', completed);
 
     if (!html) return `<div class="empty-state">No matches right now.</div>`;
     return html;

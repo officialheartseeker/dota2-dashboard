@@ -516,7 +516,15 @@
 
       if (twitchEl) {
         const tm = (twitchEl.getAttribute('href') || '').match(/Stream\/twitch\/([^"&?\/]+)/);
-        if (tm) stream = 'https://twitch.tv/' + tm[1];
+        if (tm) {
+          // Liquipedia channel names may differ from actual Twitch names
+          // Use known mappings, fallback to extracted name
+          const channelMap = {
+            'ESL_Dota_2': 'esl_dota2'
+          };
+          const raw = tm[1];
+          stream = 'https://twitch.tv/' + (channelMap[raw] || raw.toLowerCase());
+        }
       } else if (youtubeEl) {
         const ym = (youtubeEl.getAttribute('href') || '').match(/Stream\/youtube\/([^"&?\/]+)/);
         if (ym) stream = 'https://youtube.com/@' + ym[1] + '/live';

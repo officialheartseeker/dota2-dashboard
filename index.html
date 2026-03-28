@@ -168,6 +168,33 @@
       cursor: pointer;
     }
     .stream-btn:hover { background: #772ce8; }
+    .roster-player {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.2rem;
+      color: var(--text);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.3rem 0.4rem;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .roster-player:last-child {
+      border-bottom: none;
+    }
+
+    .roster-player .role {
+      font-size: 0.7rem;
+      font-weight: 500;
+      color: var(--muted);
+      min-width: 35px;
+    }
+
+    .roster-player .nick {
+      font-weight: 600;
+      text-align: left;
+      flex: 1;
+    }
 
     /* ── WIDGET-CONTAINER ── */
     .widget {
@@ -295,7 +322,7 @@
     .toolbar select:focus { outline: none; border-color: var(--accent); }
 
     /* ── MATCH LIST ── */
-    .widget-body { padding: 0.75rem; }
+    .widget-body { padding: 0.2rem; }
 
     .match-row {
       display: grid;
@@ -314,6 +341,7 @@
     .match-row:last-child { margin-bottom: 0; }
     .match-row:hover { background: rgba(255,255,255,0.04); }
     .match-row.is-live {
+      margin-top: 0.4rem;
       border-color: rgba(34,197,94,0.2);
       background: rgba(34,197,94,0.03);
     }
@@ -325,10 +353,12 @@
       border-radius: 2px 0 0 2px;
     }
     .match-row.is-completed {
+      margin-top: 0.4rem;
       border-color: rgba(224, 20, 20, 0.2);
       background: rgba(34,197,94,0.03);
     }
     .match-row.is-upcoming {
+      margin-top: 0.4rem;
       border-color: rgb(93, 97, 36);
       background: rgba(34,197,94,0.03);
     }
@@ -357,6 +387,15 @@
       flex-shrink: 1;
       overflow: hidden;
       text-overflow: ellipsis;
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+    }
+    .team-logo {
+      width: 18px;
+      height: 18px;
+      object-fit: contain;
+      flex-shrink: 0;
     }
     .team-name.tbd {
       flex-shrink: 0;
@@ -739,7 +778,19 @@
     const diff = new Date(iso) - new Date();
     return diff > 0 && diff < 1800000;
   }
+  function getFullTeamName(el) {
+    if (!el) return 'TBD';
 
+    const link = el.querySelector('a');
+
+    // 🔥 1. PRIORITET: title (hover-text)
+    if (link?.getAttribute('title')) {
+      return link.getAttribute('title').trim();
+    }
+
+    // 2. fallback: vanlig text
+    return el.textContent.trim();
+  }
   // ── Parse ──
   function parseMatches(html) {
     const tmp = document.createElement('div');
@@ -754,8 +805,14 @@
       const dateISO = ts ? new Date(ts * 1000).toISOString() : null;
 
       const opps = card.querySelectorAll('.match-info-header-opponent');
-      const t1 = opps[0]?.textContent?.trim() || 'TBD';
-      const t2 = opps[1]?.textContent?.trim() || 'TBD';
+      const t1 = getFullTeamName(opps[0]);
+      const t2 = getFullTeamName(opps[1]);
+
+      // Extract team logos
+      const logo1El = opps[0]?.querySelector('.team-template-image-icon img');
+      const logo2El = opps[1]?.querySelector('.team-template-image-icon img');
+      const logo1 = logo1El ? 'https://liquipedia.net' + logo1El.getAttribute('src') : '';
+      const logo2 = logo2El ? 'https://liquipedia.net' + logo2El.getAttribute('src') : '';
 
       const scores = card.querySelectorAll('.match-info-header-scoreholder-score');
       const s1 = scores[0]?.textContent?.trim();
@@ -823,7 +880,7 @@
       if (seen.has(key)) return;
       seen.add(key);
 
-      matches.push({ t1, t2, s1, s2, dateISO, tourn, stream, bestOf, isLive, isCompleted, isUpcoming });
+      matches.push({ t1, t2, s1, s2, dateISO, tourn, stream, bestOf, logo1, logo2, isLive, isCompleted, isUpcoming });
     });
 
     return matches;
@@ -931,11 +988,11 @@
       if (!el) return;
       el.innerHTML = `<div class="rosters">
         <div class="roster">
-          <div class="roster-title">${m.t1}</div>
+          <div class="roster-title">${m.logo1 ? `<img src="${m.logo1}" style="width:16px;height:16px;object-fit:contain;">` : ''}${m.t1}</div>
           ${renderRoster(r1)}
         </div>
         <div class="roster">
-          <div class="roster-title">${m.t2}</div>
+          <div class="roster-title">${m.logo2 ? `<img src="${m.logo2}" style="width:16px;height:16px;object-fit:contain;">` : ''}${m.t2}</div>
           ${renderRoster(r2)}
         </div>
       </div>`;
@@ -969,106 +1026,104 @@
       xhr.onerror = () => reject(new Error('Network error'));
       xhr.send();
     })
-      .then(data => {
-        const rawHtml = data?.parse?.text?.['*'];
-        if (!rawHtml) return [];
-        const tmp = document.createElement('div');
-        tmp.innerHTML = rawHtml;
+    .then(data => {
+      const rawHtml = data?.parse?.text?.['*'];
+      if (!rawHtml) return [];
 
-        let players = [];
+      const tmp = document.createElement('div');
+      tmp.innerHTML = rawHtml;
 
-        // Find the "Active" section — try multiple selector patterns
-        // The h3 may be bare or wrapped in .mw-heading
-        let activeTable = null;
+      let players = [];
 
-        // Walk ALL elements and find Active heading, then grab next table
-        const allEls = tmp.querySelectorAll('*');
-        let foundActive = false;
-        for (const el of allEls) {
-          // Check if this is the Active heading
-          if (!foundActive) {
-            if ((el.tagName === 'H3' || el.tagName === 'SPAN' || el.tagName === 'DIV') &&
-                el.id === 'Active') {
-              foundActive = true;
-              continue;
-            }
-            // Also match text content
-            if (el.tagName === 'H3' && el.textContent.trim().startsWith('Active')) {
-              foundActive = true;
-              continue;
-            }
-          }
-          // Once we found Active, look for the table
-          if (foundActive && el.classList?.contains('table2__table')) {
-            activeTable = el;
-            break;
-          }
+      // 1. Hitta "Active" sektionen korrekt
+      let activeHeader = tmp.querySelector('#Active');
+
+      if (activeHeader) {
+        let el = activeHeader.closest('h2, h3, h4') || activeHeader;
+
+        // 2. Gå framåt tills vi hittar en tabell
+        while (el && !el.nextElementSibling?.querySelector) {
+          el = el.nextElementSibling;
         }
 
-        // Parse the active roster table
-        if (activeTable) {
-          activeTable.querySelectorAll('tr').forEach(row => {
-            const nickEl = row.querySelector('.inline-player a');
-            if (!nickEl) return;
-            const cells = row.querySelectorAll('td');
-            players.push({
-              nick: nickEl.textContent.trim(),
-              role: cells[2]?.textContent?.trim() || '',
-              country: row.querySelector('.flag img')?.getAttribute('alt') || ''
-            });
-          });
-        }
+        let next = el?.nextElementSibling;
 
-        // Fallback: first table2__table with inline-player rows
-        if (players.length === 0) {
-          const tables = tmp.querySelectorAll('.table2__table');
-          for (const table of tables) {
-            table.querySelectorAll('tr').forEach(row => {
+        while (next) {
+          if (next.querySelectorAll) {
+            const rows = next.querySelectorAll('tr');
+
+            rows.forEach(row => {
               const nickEl = row.querySelector('.inline-player a');
               if (!nickEl) return;
+
               const cells = row.querySelectorAll('td');
+
               players.push({
                 nick: nickEl.textContent.trim(),
-                role: cells[2]?.textContent?.trim() || '',
-                country: row.querySelector('.flag img')?.getAttribute('alt') || ''
+                role: cells[1]?.textContent?.trim() || '',
+                country: row.querySelector('.flag img')?.alt || ''
               });
             });
-            if (players.length > 0) break;
+
+            if (players.length) break;
           }
+          next = next.nextElementSibling;
         }
+      }
 
-        // Final fallback: any .inline-player a on the page (first 7)
-        if (players.length === 0) {
-          const seen = new Set();
-          tmp.querySelectorAll('.inline-player a').forEach(a => {
-            const nick = a.textContent.trim();
-            if (nick && nick.length < 25 && !seen.has(nick) && players.length < 7) {
-              seen.add(nick);
-              players.push({ nick, role: '', country: '' });
-            }
-          });
-        }
+      // 3. Fallback (mycket viktig)
+      if (players.length === 0) {
+        const seen = new Set();
 
-        rosterCache[teamName] = players;
-        return players;
-      })
+        tmp.querySelectorAll('.inline-player a').forEach(a => {
+          const nick = a.textContent.trim();
+
+          if (
+            nick &&
+            nick.length < 25 &&
+            !seen.has(nick) &&
+            players.length < 7
+          ) {
+            seen.add(nick);
+            players.push({
+              nick,
+              role: '',
+              country: ''
+            });
+          }
+        });
+      }
+
+      rosterCache[teamName] = players;
+      return players;
+    })
       .catch(err => {
         console.warn('Roster fetch failed for', teamName, err);
         return [];
       });
   }
 
+  const ROLE_NAMES = {
+    '1': 'Carry',
+    '2': 'Mid',
+    '3': 'Offlane',
+    '4': 'Soft Supp',
+    '5': 'Hard Supp',
+    'C': 'Coach'
+  };
+
   function renderRoster(players) {
     if (!players || players.length === 0) {
       return '<div class="roster-player" style="color:var(--muted);font-style:italic;">Roster unavailable</div>';
     }
-    return players.slice(0, 7).map(p =>
-      `<div class="roster-player">
-        <span class="role">Pos ${p.role || '?'}</span>
+    return players.slice(0, 7).map(p => {
+      const roleLabel = ROLE_NAMES[p.role] || (p.role ? 'Pos ' + p.role : '');
+      return `<div class="roster-player">
+        ${roleLabel ? `<span class="role">${roleLabel}</span>` : ''}
         <span class="nick">${p.nick}</span>
-        ${p.country ? `<span style="color:var(--border);font-size:0.5rem;">${p.country}</span>` : ''}
-      </div>`
-    ).join('');
+        ${p.country ? `<span style="color:var(--border);font-size:0.6rem;">${p.country}</span>` : ''}
+      </div>`;
+    }).join('');
   }
 
   // ── Render ──
@@ -1108,7 +1163,7 @@
     const rowClass = m.isLive ? 'is-live' : m.isCompleted ? 'is-completed' : 'is-upcoming';
     const favClass = hasFav ? ' is-fav' : '';
 
-    const safeM = encodeURIComponent(JSON.stringify({ t1: m.t1, t2: m.t2, tourn: m.tourn, dateISO: m.dateISO }));
+    const safeM = encodeURIComponent(JSON.stringify({ t1: m.t1, t2: m.t2, tourn: m.tourn, dateISO: m.dateISO, logo1: m.logo1, logo2: m.logo2 }));
 
     return `
     <div class="match-row ${rowClass}${favClass}" data-match-id="${id}" onclick="openDetail(JSON.parse(decodeURIComponent('${safeM}')), event)">
@@ -1116,9 +1171,11 @@
         <span class="team-name left ${m.t1 === 'TBD' ? 'tbd' : ''}${isFav(m.t1) ? ' is-fav' : ''}">
           <button class="fav-btn ${isFav(m.t1) ? 'active' : ''}" onclick="toggleFav('${m.t1.replace(/'/g, "\\'")}', event)" title="Favorite">&#9733;</button>
           ${m.t1 !== 'TBD' ? `<a href="https://liquipedia.net/dota2/${encodeURI(m.t1.replace(/ /g, '_'))}" target="_blank" class="team-link" onclick="event.stopPropagation()">${m.t1}</a>` : m.t1}
+          ${m.logo1 ? `<img class="team-logo" src="${m.logo1}" alt="">` : ''}
         </span>
         <div class="score-center">${scoreHtml}</div>
         <span class="team-name right ${m.t2 === 'TBD' ? 'tbd' : ''}${isFav(m.t2) ? ' is-fav' : ''}">
+          ${m.logo2 ? `<img class="team-logo" src="${m.logo2}" alt="">` : ''}
           ${m.t2 !== 'TBD' ? `<a href="https://liquipedia.net/dota2/${encodeURI(m.t2.replace(/ /g, '_'))}" target="_blank" class="team-link" onclick="event.stopPropagation()">${m.t2}</a>` : m.t2}
           <button class="fav-btn ${isFav(m.t2) ? 'active' : ''}" onclick="toggleFav('${m.t2.replace(/'/g, "\\'")}', event)" title="Favorite">&#9733;</button>
         </span>

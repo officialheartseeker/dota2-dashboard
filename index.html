@@ -171,12 +171,13 @@
     .stream-btn:hover { background: #772ce8; }
     .roster-player {
       font-family: 'Rajdhani', sans-serif;
-      font-size: 0.2rem;
+      font-size: 0.85rem;
       color: var(--text);
-      display: flex;
-      justify-content: space-between;
+      display: grid;
+      grid-template-columns: 5.5rem 1fr;
       align-items: center;
-      padding: 0.3rem 0.4rem;
+      gap: 0.5rem;
+      padding: 0.3rem 0.6rem;
       border-bottom: 1px solid rgba(255,255,255,0.08);
     }
 
@@ -185,16 +186,17 @@
     }
 
     .roster-player .role {
-      font-size: 0.7rem;
-      font-weight: 500;
-      color: var(--muted);
-      min-width: 35px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #b388ff;
+      text-align: left;
+      white-space: nowrap;
     }
 
     .roster-player .nick {
       font-weight: 600;
       text-align: left;
-      flex: 1;
+      color: #e0e0e0;
     }
 
     /* ── WIDGET-CONTAINER ── */
@@ -564,21 +566,24 @@
       object-fit: contain;
     }
     .roster-player {
-      font-size: 0.75rem;
-      color: var(--muted);
-      padding: 0.15rem 0;
-      display: flex;
+      font-size: 0.85rem;
+      color: var(--text);
+      display: grid;
+      grid-template-columns: 5.5rem 1fr;
       align-items: center;
-      gap: 0.4rem;
+      gap: 0.5rem;
+      padding: 0.3rem 0.6rem;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
     }
     .roster-player .role {
-      font-size: 0.6rem;
-      color: var(--border);
-      min-width: 1.5rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #b388ff;
+      white-space: nowrap;
     }
     .roster-player .nick {
-      color: var(--text);
-      font-weight: 500;
+      color: #e0e0e0;
+      font-weight: 600;
     }
     .roster-loading {
       text-align: center;

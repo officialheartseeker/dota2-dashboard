@@ -811,8 +811,10 @@
       // Extract team logos
       const logo1El = opps[0]?.querySelector('.team-template-image-icon img');
       const logo2El = opps[1]?.querySelector('.team-template-image-icon img');
-      const logo1 = logo1El ? 'https://liquipedia.net' + logo1El.getAttribute('src') : '';
-      const logo2 = logo2El ? 'https://liquipedia.net' + logo2El.getAttribute('src') : '';
+      const logo1src = logo1El?.getAttribute('src') || '';
+      const logo1 = logo1src.startsWith('http') ? logo1src : (logo1src.startsWith('//') ? 'https:' + logo1src : (logo1src ? 'https://liquipedia.net' + logo1src : ''));
+      const logo2src = logo2El?.getAttribute('src') || '';
+      const logo2 = logo2src.startsWith('http') ? logo2src : (logo2src.startsWith('//') ? 'https:' + logo2src : (logo2src ? 'https://liquipedia.net' + logo2src : ''));
 
       const scores = card.querySelectorAll('.match-info-header-scoreholder-score');
       const s1 = scores[0]?.textContent?.trim();
@@ -1058,9 +1060,16 @@
 
               const cells = row.querySelectorAll('td');
 
+              // Find role: scan cells for a position value (1-5 or C)
+              let role = '';
+              for (let ci = cells.length - 1; ci >= 0; ci--) {
+                const val = cells[ci]?.textContent?.trim();
+                if (/^[1-5C]$/.test(val)) { role = val; break; }
+              }
+
               players.push({
                 nick: nickEl.textContent.trim(),
-                role: cells[1]?.textContent?.trim() || '',
+                role: role,
                 country: row.querySelector('.flag img')?.alt || ''
               });
             });

@@ -43,10 +43,13 @@
       min-height: 100vh;
       padding: 1.5rem;
       display: grid;
-      grid-template-columns: var(--sidebar-width, 30%) 1fr;
+      grid-template-columns: var(--sidebar-width, 30%) minmax(200px, 1fr) 1fr;
       grid-template-rows: auto;
       gap: 1.25rem;
       align-items: start;
+    }
+    body.no-standings {
+      grid-template-columns: var(--sidebar-width, 30%) 1fr;
     }
 
     /* ── RESIZE HANDLE (integrated in widget right edge) ── */
@@ -219,36 +222,10 @@
     .drag-handle:hover { opacity: 0.9; }
     .drag-handle:active { cursor: grabbing; }
 
-    body.widget-right {
-      grid-template-columns: 1fr var(--sidebar-width, 30%);
-    }
-    body.widget-right .widget { order: 2; }
-    body.widget-right .stream-panel { order: 1; }
-    body.widget-right .resize-handle {
-      right: auto; left: -4px;
-    }
-    body.widget-right .resize-handle::after {
-      right: auto; left: 3px;
-    }
-
+    .widget.dragging { opacity: 0.5; }
     .widget.drag-over {
       outline: 2px dashed var(--accent);
       outline-offset: -2px;
-    }
-    .drop-zone {
-      position: fixed;
-      top: 0;
-      width: 50%;
-      height: 100%;
-      z-index: 9999;
-      pointer-events: none;
-    }
-    .drop-zone.active { pointer-events: all; }
-    .drop-zone.left { left: 0; }
-    .drop-zone.right { right: 0; left: auto; }
-    .drop-zone.hover {
-      background: rgba(124, 77, 255, 0.08);
-      border: 2px dashed var(--accent);
     }
 
     /* ── WIDGET-CONTAINER ── */
@@ -460,8 +437,8 @@
       font-style: italic;
       font-weight: 400;
     }
-    .team-name.left { text-align: right; }
-    .team-name.right { text-align: left; }
+    .team-name.left { justify-content: flex-end; text-align: right; }
+    .team-name.right { justify-content: flex-start; text-align: left; }
     .team-name.is-fav { color: var(--fav); }
 
     .score-center {
@@ -677,6 +654,91 @@
       line-height: 1.6;
     }
 
+    /* ── STANDINGS WIDGET ── */
+    .standings-widget {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      min-width: 0;
+    }
+    .standings-widget .widget-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.9rem 1.1rem;
+      border-bottom: 1px solid var(--border);
+      gap: 0.75rem;
+    }
+    .standings-widget .widget-header::after {
+      content: '';
+      position: absolute; left: 0; right: 0; bottom: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+      opacity: 0.15;
+    }
+    .standings-widget .widget-body {
+      padding: 0.4rem;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+    .standings-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.85rem;
+    }
+    .standings-table th {
+      text-align: left;
+      padding: 0.4rem 0.6rem;
+      color: var(--muted);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+    }
+    .standings-table td {
+      padding: 0.4rem 0.6rem;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      white-space: nowrap;
+    }
+    .standings-table tr:hover {
+      background: rgba(255,255,255,0.04);
+    }
+    .standings-place {
+      font-weight: 700;
+      min-width: 2rem;
+      text-align: center;
+    }
+    .standings-place.gold { color: #ffd700; }
+    .standings-place.silver { color: #c0c0c0; }
+    .standings-place.bronze { color: #cd7f32; }
+    .standings-team {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .standings-team img {
+      width: 16px; height: 16px;
+      object-fit: contain;
+    }
+    .standings-prize {
+      color: var(--live);
+      font-weight: 600;
+    }
+    .standings-group-header {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--accent);
+      padding: 0.6rem 0.6rem 0.3rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
     /* ── RESPONSIVE ── */
     @media (max-width: 900px) {
       body {
@@ -726,6 +788,23 @@
     </div>
     <div class="widget-body" id="match-body">
       <div class="loading-state"><div class="loader"></div>Fetching matches...</div>
+    </div>
+  </div>
+
+  <!-- WIDGET 2: Tournament Standings -->
+  <div class="standings-widget" id="standings-widget" draggable="true">
+    <div class="widget-header" style="position:relative;">
+      <div class="drag-handle" title="Drag to reposition">⠿</div>
+      <div class="widget-title">
+        <div class="logo-icon" style="background:#1a6b3c;">ST</div>
+        <div class="widget-label">Standings</div>
+      </div>
+      <select id="standings-tourn-select" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:0.25rem 0.4rem;font-size:0.75rem;max-width:200px;">
+        <option value="">Select tournament</option>
+      </select>
+    </div>
+    <div class="widget-body" id="standings-body">
+      <div class="empty-state">Select a tournament or click a match to view standings</div>
     </div>
   </div>
 
@@ -890,6 +969,8 @@
       const hasScore = !isNaN(s1Num) && !isNaN(s2Num);
 
       const tourn = card.querySelector('.match-info-tournament-name')?.textContent?.trim() || '';
+      const tournLinkEl = card.querySelector('.match-info-tournament-name a, a[href*="/dota2/"]');
+      const tournPage = tournLinkEl ? tournLinkEl.getAttribute('href')?.replace(/^\/dota2\//, '').replace(/#.*/, '') : '';
 
       // Best-of format
       const boEl = card.querySelector('.match-info-best-of, .match-info-bo');
@@ -947,7 +1028,7 @@
       if (seen.has(key)) return;
       seen.add(key);
 
-      matches.push({ t1, t2, s1, s2, dateISO, tourn, stream, bestOf, logo1, logo2, isLive, isCompleted, isUpcoming });
+      matches.push({ t1, t2, s1, s2, dateISO, tourn, tournPage, stream, bestOf, logo1, logo2, isLive, isCompleted, isUpcoming });
     });
 
     return matches;
@@ -1354,6 +1435,7 @@
 
         allMatches = matches;
         populateFilter(matches);
+        updateStandingsDropdown();
         renderCurrent();
         startCountdowns();
 
@@ -1449,10 +1531,7 @@
     });
     document.addEventListener('mousemove', e => {
       if (!dragging) return;
-      const isRight = document.body.classList.contains('widget-right');
-      const pct = isRight
-        ? Math.min(60, Math.max(10, ((window.innerWidth - e.clientX) / window.innerWidth) * 100))
-        : Math.min(60, Math.max(10, (e.clientX / window.innerWidth) * 100));
+      const pct = Math.min(50, Math.max(10, (e.clientX / window.innerWidth) * 100));
       document.body.style.setProperty('--sidebar-width', pct + '%');
     });
     document.addEventListener('mouseup', () => {
@@ -1466,60 +1545,237 @@
     });
   })();
 
-  // ── Drag & Drop widget position ──
+  // ── Drag & Drop widgets ──
   (function() {
-    const widget = document.getElementById('dota-widget');
-    const handle = document.getElementById('drag-handle');
-    const dropL = document.createElement('div');
-    const dropR = document.createElement('div');
-    dropL.className = 'drop-zone left';
-    dropR.className = 'drop-zone right';
-    document.body.appendChild(dropL);
-    document.body.appendChild(dropR);
+    const widgets = document.querySelectorAll('#dota-widget, #standings-widget');
+    let draggedEl = null;
 
-    // Restore saved position
-    if (localStorage.getItem('d2_widget_side') === 'right') {
-      document.body.classList.add('widget-right');
+    widgets.forEach(w => {
+      w.setAttribute('draggable', 'true');
+
+      // Only allow drag from the handle
+      w.querySelector('.drag-handle')?.addEventListener('mousedown', () => {
+        w.setAttribute('data-can-drag', '1');
+      });
+      document.addEventListener('mouseup', () => {
+        w.removeAttribute('data-can-drag');
+      });
+
+      w.addEventListener('dragstart', e => {
+        if (!w.getAttribute('data-can-drag')) { e.preventDefault(); return; }
+        draggedEl = w;
+        w.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+      });
+
+      w.addEventListener('dragend', () => {
+        w.classList.remove('dragging');
+        widgets.forEach(x => x.classList.remove('drag-over'));
+        draggedEl = null;
+        // Save order
+        const order = [...document.body.children].filter(c => c.matches('#dota-widget, #standings-widget, .stream-panel')).map(c => c.id);
+        localStorage.setItem('d2_widget_order', JSON.stringify(order));
+      });
+
+      w.addEventListener('dragover', e => {
+        if (!draggedEl || draggedEl === w) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        w.classList.add('drag-over');
+      });
+
+      w.addEventListener('dragleave', () => w.classList.remove('drag-over'));
+
+      w.addEventListener('drop', e => {
+        e.preventDefault();
+        w.classList.remove('drag-over');
+        if (!draggedEl || draggedEl === w) return;
+        // Swap positions in DOM
+        const parent = w.parentNode;
+        const draggedIdx = [...parent.children].indexOf(draggedEl);
+        const targetIdx = [...parent.children].indexOf(w);
+        if (draggedIdx < targetIdx) {
+          parent.insertBefore(draggedEl, w.nextSibling);
+        } else {
+          parent.insertBefore(draggedEl, w);
+        }
+      });
+    });
+
+    // Restore saved order
+    const saved = JSON.parse(localStorage.getItem('d2_widget_order') || '[]');
+    if (saved.length) {
+      saved.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) document.body.appendChild(el);
+      });
+    }
+  })();
+
+  // ── Standings ──
+  const standingsCache = {};
+  const standingsBody = document.getElementById('standings-body');
+  const standingsSelect = document.getElementById('standings-tourn-select');
+
+  function fetchStandings(tournPage, tournName) {
+    if (!tournPage) {
+      standingsBody.innerHTML = '<div class="empty-state">No tournament page found</div>';
+      return;
     }
 
-    let dragging = false;
+    if (standingsCache[tournPage]) {
+      renderStandings(standingsCache[tournPage], tournName);
+      return;
+    }
 
-    handle.addEventListener('mousedown', e => {
-      e.preventDefault();
-      dragging = true;
-      dropL.classList.add('active');
-      dropR.classList.add('active');
-      document.body.style.userSelect = 'none';
+    standingsBody.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading standings...</div>';
+
+    const url = 'https://liquipedia.net/dota2/api.php?action=parse&page=' + encodeURIComponent(tournPage) + '&prop=text&format=json&origin=*';
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', url);
+    xhr.setRequestHeader('Accept', 'application/json');
+    xhr.onload = function() {
+      try {
+        const data = JSON.parse(xhr.responseText);
+        const html = data?.parse?.text?.['*'];
+        if (!html) { standingsBody.innerHTML = '<div class="empty-state">Could not load standings</div>'; return; }
+
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+
+        const standings = parseStandings(tmp);
+        standingsCache[tournPage] = standings;
+        renderStandings(standings, tournName);
+      } catch(e) {
+        console.warn('Standings parse error:', e);
+        standingsBody.innerHTML = '<div class="empty-state">Error loading standings</div>';
+      }
+    };
+    xhr.onerror = () => { standingsBody.innerHTML = '<div class="empty-state">Failed to fetch standings</div>'; };
+    xhr.send();
+  }
+
+  function parseStandings(tmp) {
+    const results = [];
+
+    // Try prizepool table first
+    const prizeRows = tmp.querySelectorAll('.prizepooltable .csstable-widget-row:not(.prizepooltable-header)');
+    if (prizeRows.length) {
+      prizeRows.forEach(row => {
+        const placeEl = row.querySelector('.prizepooltable-place');
+        const place = placeEl?.textContent?.trim() || '';
+        if (!place || place === 'Place') return;
+
+        const cells = row.querySelectorAll('.csstable-widget-cell');
+        let prize = '';
+        let team = '';
+        let teamLogo = '';
+
+        cells.forEach(cell => {
+          const text = cell.textContent.trim();
+          if (text.match(/^\$[\d,]+/) || text.match(/^[\d,]+\s*USD/)) {
+            prize = text;
+          }
+          const teamEl = cell.querySelector('.block-team a, .team-template-text a');
+          if (teamEl && !team) {
+            team = teamEl.textContent.trim();
+            const logoEl = cell.querySelector('.team-template-image-icon img');
+            const src = logoEl?.getAttribute('src') || '';
+            teamLogo = src.startsWith('http') ? src : (src.startsWith('//') ? 'https:' + src : (src ? 'https://liquipedia.net' + src : ''));
+          }
+        });
+
+        if (team) {
+          results.push({ place, team, teamLogo, prize });
+        }
+      });
+    }
+
+    // Fallback: try wikitable
+    if (results.length === 0) {
+      const tables = tmp.querySelectorAll('.wikitable');
+      tables.forEach(table => {
+        const rows = table.querySelectorAll('tr');
+        rows.forEach(row => {
+          const cells = row.querySelectorAll('td');
+          if (cells.length < 2) return;
+          const place = cells[0]?.textContent?.trim();
+          const teamEl = row.querySelector('.team-template-text a, a[href*="/dota2/"]');
+          if (teamEl && place) {
+            results.push({
+              place,
+              team: teamEl.textContent.trim(),
+              teamLogo: '',
+              prize: cells.length > 2 ? cells[cells.length - 1]?.textContent?.trim() : ''
+            });
+          }
+        });
+      });
+    }
+
+    return results;
+  }
+
+  function renderStandings(standings, tournName) {
+    if (!standings.length) {
+      standingsBody.innerHTML = '<div class="empty-state">No standings data available for this tournament</div>';
+      return;
+    }
+
+    let html = `<table class="standings-table">
+      <thead><tr><th>#</th><th>Team</th><th>Prize</th></tr></thead><tbody>`;
+
+    standings.forEach(s => {
+      let placeClass = '';
+      if (s.place.startsWith('1')) placeClass = 'gold';
+      else if (s.place.startsWith('2')) placeClass = 'silver';
+      else if (s.place.startsWith('3')) placeClass = 'bronze';
+
+      html += `<tr>
+        <td class="standings-place ${placeClass}">${s.place}</td>
+        <td class="standings-team">
+          ${s.teamLogo ? `<img src="${s.teamLogo}" referrerpolicy="no-referrer" alt="">` : ''}
+          ${s.team}
+        </td>
+        <td class="standings-prize">${s.prize || '-'}</td>
+      </tr>`;
     });
 
-    [dropL, dropR].forEach(zone => {
-      zone.addEventListener('mouseenter', () => { if (dragging) zone.classList.add('hover'); });
-      zone.addEventListener('mouseleave', () => zone.classList.remove('hover'));
-    });
+    html += '</tbody></table>';
+    standingsBody.innerHTML = html;
+  }
 
-    document.addEventListener('mousemove', e => {
-      if (!dragging) return;
-      handle.style.cursor = 'grabbing';
-    });
-
-    document.addEventListener('mouseup', e => {
-      if (!dragging) return;
-      dragging = false;
-      handle.style.cursor = '';
-      dropL.classList.remove('active', 'hover');
-      dropR.classList.remove('active', 'hover');
-      document.body.style.userSelect = '';
-
-      const x = e.clientX / window.innerWidth;
-      if (x < 0.5) {
-        document.body.classList.remove('widget-right');
-        localStorage.setItem('d2_widget_side', 'left');
-      } else {
-        document.body.classList.add('widget-right');
-        localStorage.setItem('d2_widget_side', 'right');
+  // Populate standings dropdown when matches load
+  function updateStandingsDropdown() {
+    const seen = new Map();
+    allMatches.forEach(m => {
+      if (m.tourn && m.tournPage && !seen.has(m.tourn)) {
+        seen.set(m.tourn, m.tournPage);
       }
     });
-  })();
+    const current = standingsSelect.value;
+    standingsSelect.innerHTML = '<option value="">Select tournament</option>' +
+      [...seen.entries()].map(([name, page]) =>
+        `<option value="${page}" ${page === current ? 'selected' : ''}>${name}</option>`
+      ).join('');
+
+    // Auto-load first live tournament
+    if (!current && seen.size > 0) {
+      const live = allMatches.find(m => m.isLive && m.tournPage);
+      if (live) {
+        standingsSelect.value = live.tournPage;
+        fetchStandings(live.tournPage, live.tourn);
+      }
+    }
+  }
+
+  standingsSelect.addEventListener('change', () => {
+    const page = standingsSelect.value;
+    const name = standingsSelect.options[standingsSelect.selectedIndex]?.text || '';
+    if (page) fetchStandings(page, name);
+    else standingsBody.innerHTML = '<div class="empty-state">Select a tournament to view standings</div>';
+  });
 
   // ── Init ──
   loadMatches();

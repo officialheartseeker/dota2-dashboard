@@ -531,6 +531,19 @@
     .match-row:hover .dismiss-btn { color: var(--muted); }
     .dismiss-btn:hover { color: var(--accent) !important; }
 
+    .restore-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.7rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 3px;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .restore-btn:hover { color: var(--text); border-color: var(--accent); }
+
     /* Section dividers */
     .section-divider {
       display: flex; align-items: center; gap: 0.5rem;
@@ -811,6 +824,7 @@
           <strong id="viewer-num">-</strong> viewing
         </div>
         <div class="updated-text" id="updated-text">—</div>
+        <button class="restore-btn" id="restore-dismissed-btn" style="display:none" onclick="restoreAllDismissed()"></button>
         <button class="icon-btn" onclick="loadMatches()" id="refresh-btn">
           <span class="spin-icon">↻</span> Refresh
         </button>
@@ -1097,12 +1111,31 @@
     event.stopPropagation();
     dismissed.add(id);
     saveDismissed();
+    updateRestoreBtn();
     const el = document.querySelector('[data-match-id="' + CSS.escape(id) + '"]');
     if (el) {
       el.style.transition = 'opacity 0.2s, max-height 0.3s';
       el.style.opacity = '0';
       el.style.maxHeight = '0';
       setTimeout(() => el.remove(), 300);
+    }
+  }
+
+  function restoreAllDismissed() {
+    dismissed.clear();
+    saveDismissed();
+    updateRestoreBtn();
+    renderCurrent();
+  }
+
+  function updateRestoreBtn() {
+    const btn = document.getElementById('restore-dismissed-btn');
+    if (!btn) return;
+    if (dismissed.size > 0) {
+      btn.style.display = '';
+      btn.textContent = 'Show ' + dismissed.size + ' hidden';
+    } else {
+      btn.style.display = 'none';
     }
   }
 
@@ -1947,6 +1980,7 @@
   loadMatches();
   setInterval(loadMatches, 120000); // Auto-refresh every 2 min
   initViewerCounter();
+  updateRestoreBtn();
 </script>
 </body>
 </html>

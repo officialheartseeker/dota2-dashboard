@@ -1042,8 +1042,8 @@
       let activeHeader = tmp.querySelector('#Active_Roster') || tmp.querySelector('#Active');
 
       if (activeHeader) {
-        // Walk up to the heading element, then scan forward for the roster table
-        let el = activeHeader.closest('h2, h3, h4') || activeHeader.parentElement || activeHeader;
+        // Walk up to the top-level container (mw-heading wrapper or the heading itself)
+        let el = activeHeader.closest('.mw-heading') || activeHeader.closest('h2, h3, h4') || activeHeader;
 
         // Scan all subsequent siblings for a .table2 roster table
         let next = el.nextElementSibling;

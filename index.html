@@ -745,6 +745,36 @@
       letter-spacing: 0.06em;
     }
 
+    /* Standings tabs */
+    .standings-tabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      padding: 0 0.4rem;
+    }
+    .standings-tab {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.8rem;
+      font-weight: 600;
+      padding: 0.5rem 0.8rem;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .standings-tab:hover { color: var(--text); }
+    .standings-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    /* Group row status */
+    .standings-table tr.row-qualified { background: rgba(34, 197, 94, 0.08); }
+    .standings-table tr.row-tiebreak { background: rgba(245, 158, 11, 0.08); }
+    .standings-table tr.row-eliminated { background: rgba(200, 57, 43, 0.06); opacity: 0.6; }
+
     /* ── RESPONSIVE ── */
     @media (max-width: 900px) {
       body {
@@ -1622,6 +1652,28 @@
   const standingsCache = {};
   const standingsBody = document.getElementById('standings-body');
   const standingsSelect = document.getElementById('standings-tourn-select');
+  let activeStandingsTab = 'groups';
+
+  function liquipediaXhr(page) {
+    return new Promise((resolve, reject) => {
+      const url = 'https://liquipedia.net/dota2/api.php?action=parse&page=' + encodeURIComponent(page) + '&prop=text&format=json&origin=*';
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', url);
+      xhr.setRequestHeader('Accept', 'application/json');
+      xhr.onload = () => {
+        try {
+          const data = JSON.parse(xhr.responseText);
+          const html = data?.parse?.text?.['*'];
+          if (!html) { reject('empty'); return; }
+          const tmp = document.createElement('div');
+          tmp.innerHTML = html;
+          resolve(tmp);
+        } catch(e) { reject(e); }
+      };
+      xhr.onerror = () => reject('network');
+      xhr.send();
+    });
+  }
 
   function fetchStandings(tournPage, tournName) {
     if (!tournPage) {
@@ -1630,139 +1682,247 @@
     }
 
     if (standingsCache[tournPage]) {
-      renderStandings(standingsCache[tournPage], tournName);
+      renderStandingsFull(standingsCache[tournPage], tournName);
       return;
     }
 
     standingsBody.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading standings...</div>';
 
-    const url = 'https://liquipedia.net/dota2/api.php?action=parse&page=' + encodeURIComponent(tournPage) + '&prop=text&format=json&origin=*';
+    // Fetch both main page (prizepool) and group stage page in parallel
+    const mainP = liquipediaXhr(tournPage).catch(() => null);
+    const groupP = liquipediaXhr(tournPage + '/Group_Stage').catch(() => null);
 
-    const xhr = new XMLHttpRequest();
-    xhr.open('GET', url);
-    xhr.setRequestHeader('Accept', 'application/json');
-    xhr.onload = function() {
-      try {
-        const data = JSON.parse(xhr.responseText);
-        const html = data?.parse?.text?.['*'];
-        if (!html) { standingsBody.innerHTML = '<div class="empty-state">Could not load standings</div>'; return; }
+    Promise.all([mainP, groupP]).then(([mainTmp, groupTmp]) => {
+      const data = { groups: [], playoffs: [] };
 
-        const tmp = document.createElement('div');
-        tmp.innerHTML = html;
-
-        const standings = parseStandings(tmp);
-        standingsCache[tournPage] = standings;
-        renderStandings(standings, tournName);
-      } catch(e) {
-        console.warn('Standings parse error:', e);
-        standingsBody.innerHTML = '<div class="empty-state">Error loading standings</div>';
+      // Parse group stage
+      if (groupTmp) {
+        data.groups = parseGroupStage(groupTmp);
       }
-    };
-    xhr.onerror = () => { standingsBody.innerHTML = '<div class="empty-state">Failed to fetch standings</div>'; };
-    xhr.send();
+
+      // Parse prizepool / playoffs from main page
+      if (mainTmp) {
+        data.playoffs = parsePrizepool(mainTmp);
+        // If no groups from separate page, try main page
+        if (!data.groups.length) {
+          data.groups = parseGroupStage(mainTmp);
+        }
+      }
+
+      standingsCache[tournPage] = data;
+      renderStandingsFull(data, tournName);
+    }).catch(() => {
+      standingsBody.innerHTML = '<div class="empty-state">Error loading standings</div>';
+    });
   }
 
-  function parseStandings(tmp) {
-    const results = [];
+  function parseGroupStage(tmp) {
+    const groups = [];
+    // Find grouptables: .grouptable or wikitable with group headers
+    const tables = tmp.querySelectorAll('.grouptable');
 
-    // Prizepool rows: div.csstable-widget-row with placement classes
-    const prizeRows = tmp.querySelectorAll('.csstable-widget-row[class*="background-color-"]');
-    if (prizeRows.length) {
-      prizeRows.forEach(row => {
-        const placeEl = row.querySelector('.prizepooltable-place');
-        const place = placeEl?.textContent?.trim() || '';
-        if (!place) return;
-
-        const cells = row.querySelectorAll('.csstable-widget-cell');
-
-        // Prize is typically the 2nd cell (after place)
-        let prize = '';
-        for (let i = 1; i < cells.length; i++) {
-          const text = cells[i]?.textContent?.trim() || '';
-          if (text.match(/^\$[\d,]+/)) { prize = text; break; }
+    if (tables.length) {
+      tables.forEach(table => {
+        // Group name from preceding h3 or from table header
+        let groupName = '';
+        const headerCell = table.querySelector('th');
+        if (headerCell) {
+          const text = headerCell.textContent.trim();
+          if (text !== 'Standings') groupName = text;
+        }
+        // Try to find group name from a preceding heading
+        if (!groupName) {
+          let prev = table.previousElementSibling;
+          // Walk up through wrappers
+          if (!prev && table.parentElement) prev = table.parentElement.previousElementSibling;
+          while (prev) {
+            if (/^(H[2-4]|DIV)$/i.test(prev.tagName)) {
+              const hText = prev.textContent.trim().replace(/\[e\]/, '').trim();
+              if (hText.match(/group/i)) { groupName = hText; break; }
+            }
+            prev = prev.previousElementSibling;
+          }
         }
 
-        // Team name from .block-team .name a, or .block-team a
-        const nameEl = row.querySelector('.block-team .name a') || row.querySelector('.block-team a');
-        const team = nameEl?.textContent?.trim() || '';
+        const teams = [];
+        table.querySelectorAll('tr').forEach(row => {
+          const cells = row.querySelectorAll('td');
+          if (cells.length < 2) return;
 
-        // Team logo
-        const logoEl = row.querySelector('.team-template-image-icon img');
-        const src = logoEl?.getAttribute('src') || '';
-        const teamLogo = src.startsWith('http') ? src : (src.startsWith('//') ? 'https:' + src : (src ? 'https://liquipedia.net' + src : ''));
+          const placeCell = cells[0];
+          const place = placeCell?.textContent?.trim() || '';
+          if (!place || !place.match(/^\d/)) return;
 
-        results.push({ place, team: team || 'TBD', teamLogo, prize });
+          // Team name: from .grouptableslot or team-template
+          const teamSlot = row.querySelector('.grouptableslot');
+          const teamEl = teamSlot?.querySelector('a') || row.querySelector('.team-template-text a');
+          const team = teamEl?.textContent?.trim() || teamSlot?.textContent?.trim() || '';
+
+          // Logo
+          const logoEl = row.querySelector('.team-template-image-icon img');
+          const src = logoEl?.getAttribute('src') || '';
+          const logo = src.startsWith('http') ? src : (src.startsWith('//') ? 'https:' + src : (src ? 'https://liquipedia.net' + src : ''));
+
+          // Record & map score from last cells
+          const lastCells = [...cells].slice(-2);
+          const record = lastCells[0]?.textContent?.trim() || '';
+          const mapScore = lastCells[1]?.textContent?.trim() || '';
+
+          // Qualification status from row class
+          const rowClass = row.className || '';
+          let status = '';
+          if (rowClass.includes('bg-up')) status = 'up';
+          else if (rowClass.includes('bg-stayup')) status = 'stayup';
+          else if (rowClass.includes('bg-stay')) status = 'stay';
+          else if (rowClass.includes('bg-down')) status = 'down';
+
+          if (team) teams.push({ place, team, logo, record, mapScore, status });
+        });
+
+        if (teams.length) {
+          groups.push({ name: groupName || ('Group ' + String.fromCharCode(65 + groups.length)), teams });
+        }
       });
     }
 
-    // Fallback: rows without background-color but with prizepooltable-place
-    if (results.length === 0) {
-      const fallbackRows = tmp.querySelectorAll('.csstable-widget-row');
-      fallbackRows.forEach(row => {
+    return groups;
+  }
+
+  function parsePrizepool(tmp) {
+    const results = [];
+    const prizeRows = tmp.querySelectorAll('.csstable-widget-row[class*="background-color-"]');
+    prizeRows.forEach(row => {
+      const placeEl = row.querySelector('.prizepooltable-place');
+      const place = placeEl?.textContent?.trim() || '';
+      if (!place) return;
+
+      const cells = row.querySelectorAll('.csstable-widget-cell');
+      let prize = '';
+      for (let i = 1; i < cells.length; i++) {
+        const text = cells[i]?.textContent?.trim() || '';
+        if (text.match(/^\$[\d,]+/)) { prize = text; break; }
+      }
+
+      const nameEl = row.querySelector('.block-team .name a') || row.querySelector('.block-team a');
+      const team = nameEl?.textContent?.trim() || '';
+      const logoEl = row.querySelector('.team-template-image-icon img');
+      const src = logoEl?.getAttribute('src') || '';
+      const logo = src.startsWith('http') ? src : (src.startsWith('//') ? 'https:' + src : (src ? 'https://liquipedia.net' + src : ''));
+
+      results.push({ place, team: team || 'TBD', logo, prize });
+    });
+
+    // Fallback
+    if (!results.length) {
+      tmp.querySelectorAll('.csstable-widget-row').forEach(row => {
         const placeEl = row.querySelector('.prizepooltable-place');
         if (!placeEl) return;
         const place = placeEl.textContent.trim();
         if (!place || place === 'Place') return;
-
         let prize = '';
         row.querySelectorAll('.csstable-widget-cell').forEach(cell => {
           const text = cell.textContent.trim();
           if (text.match(/^\$[\d,]+/) && !prize) prize = text;
         });
-
         const nameEl = row.querySelector('.block-team .name a') || row.querySelector('.block-team a');
         const team = nameEl?.textContent?.trim() || '';
         const logoEl = row.querySelector('.team-template-image-icon img');
         const src = logoEl?.getAttribute('src') || '';
-        const teamLogo = src.startsWith('http') ? src : (src.startsWith('//') ? 'https:' + src : (src ? 'https://liquipedia.net' + src : ''));
-
-        if (place) results.push({ place, team: team || 'TBD', teamLogo, prize });
+        const logo = src.startsWith('http') ? src : (src.startsWith('//') ? 'https:' + src : (src ? 'https://liquipedia.net' + src : ''));
+        if (place) results.push({ place, team: team || 'TBD', logo, prize });
       });
     }
 
     return results;
   }
 
-  function renderStandings(standings, tournName) {
-    if (!standings.length) {
-      standingsBody.innerHTML = '<div class="empty-state">No standings data available for this tournament</div>';
+  function renderStandingsFull(data, tournName) {
+    const hasGroups = data.groups.length > 0;
+    const hasPlayoffs = data.playoffs.length > 0;
+
+    if (!hasGroups && !hasPlayoffs) {
+      standingsBody.innerHTML = '<div class="empty-state">No standings data available</div>';
       return;
     }
 
-    let html = `<table class="standings-table">
-      <thead><tr><th>#</th><th>Team</th><th>Prize</th></tr></thead><tbody>`;
+    // Tab bar
+    let html = '<div class="standings-tabs">';
+    if (hasGroups) html += `<button class="standings-tab ${activeStandingsTab === 'groups' ? 'active' : ''}" onclick="switchStandingsTab('groups')">Groups</button>`;
+    if (hasPlayoffs) html += `<button class="standings-tab ${activeStandingsTab === 'playoffs' ? 'active' : ''}" onclick="switchStandingsTab('playoffs')">Results</button>`;
+    html += '</div>';
 
-    standings.forEach(s => {
-      let placeClass = '';
-      if (s.place.startsWith('1')) placeClass = 'gold';
-      else if (s.place.startsWith('2')) placeClass = 'silver';
-      else if (s.place.startsWith('3')) placeClass = 'bronze';
+    // Auto-select available tab
+    if (activeStandingsTab === 'groups' && !hasGroups) activeStandingsTab = 'playoffs';
+    if (activeStandingsTab === 'playoffs' && !hasPlayoffs) activeStandingsTab = 'groups';
 
-      html += `<tr>
-        <td class="standings-place ${placeClass}">${s.place}</td>
-        <td class="standings-team">
-          ${s.teamLogo ? `<img src="${s.teamLogo}" referrerpolicy="no-referrer" alt="">` : ''}
-          ${s.team}
-        </td>
-        <td class="standings-prize">${s.prize || '-'}</td>
-      </tr>`;
-    });
+    if (activeStandingsTab === 'groups' && hasGroups) {
+      data.groups.forEach(g => {
+        html += `<div class="standings-group-header">${g.name}</div>`;
+        html += `<table class="standings-table">
+          <thead><tr><th>#</th><th>Team</th><th>W-D-L</th><th>Maps</th></tr></thead><tbody>`;
+        g.teams.forEach(t => {
+          let statusClass = '';
+          if (t.status === 'up') statusClass = 'row-qualified';
+          else if (t.status === 'stayup') statusClass = 'row-tiebreak';
+          else if (t.status === 'down') statusClass = 'row-eliminated';
 
-    html += '</tbody></table>';
+          html += `<tr class="${statusClass}">
+            <td class="standings-place">${t.place}</td>
+            <td class="standings-team">
+              ${t.logo ? `<img src="${t.logo}" referrerpolicy="no-referrer" alt="">` : ''}
+              ${t.team}
+            </td>
+            <td style="text-align:center;font-weight:600;">${t.record}</td>
+            <td style="text-align:center;color:var(--muted);">${t.mapScore}</td>
+          </tr>`;
+        });
+        html += '</tbody></table>';
+      });
+    } else if (activeStandingsTab === 'playoffs' && hasPlayoffs) {
+      html += `<table class="standings-table">
+        <thead><tr><th>#</th><th>Team</th><th>Prize</th></tr></thead><tbody>`;
+      data.playoffs.forEach(s => {
+        let placeClass = '';
+        if (s.place.startsWith('1')) placeClass = 'gold';
+        else if (s.place.startsWith('2')) placeClass = 'silver';
+        else if (s.place.startsWith('3')) placeClass = 'bronze';
+
+        html += `<tr>
+          <td class="standings-place ${placeClass}">${s.place}</td>
+          <td class="standings-team">
+            ${s.logo ? `<img src="${s.logo}" referrerpolicy="no-referrer" alt="">` : ''}
+            ${s.team}
+          </td>
+          <td class="standings-prize">${s.prize || '-'}</td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+    }
+
     standingsBody.innerHTML = html;
   }
+
+  window.switchStandingsTab = function(tab) {
+    activeStandingsTab = tab;
+    // Re-render with cached data
+    const page = standingsSelect.value;
+    if (page && standingsCache[page]) {
+      const name = standingsSelect.options[standingsSelect.selectedIndex]?.text || '';
+      renderStandingsFull(standingsCache[page], name);
+    }
+  };
 
   // Populate standings dropdown when matches load
   function updateStandingsDropdown() {
     const seen = new Map();
     allMatches.forEach(m => {
-      if (m.tourn && m.tournPage && !seen.has(m.tourn)) {
-        seen.set(m.tourn, m.tournPage);
+      if (m.tourn && m.tournPage && !seen.has(m.tournPage)) {
+        seen.set(m.tournPage, m.tourn);
       }
     });
     const current = standingsSelect.value;
     standingsSelect.innerHTML = '<option value="">Select tournament</option>' +
-      [...seen.entries()].map(([name, page]) =>
+      [...seen.entries()].map(([page, name]) =>
         `<option value="${page}" ${page === current ? 'selected' : ''}>${name}</option>`
       ).join('');
 

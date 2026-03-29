@@ -1039,22 +1039,22 @@
       let players = [];
 
       // 1. Hitta "Active" sektionen korrekt
-      let activeHeader = tmp.querySelector('#Active');
+      let activeHeader = tmp.querySelector('#Active_Roster') || tmp.querySelector('#Active');
 
       if (activeHeader) {
-        let el = activeHeader.closest('h2, h3, h4') || activeHeader;
+        // Walk up to the heading element, then scan forward for the roster table
+        let el = activeHeader.closest('h2, h3, h4') || activeHeader.parentElement || activeHeader;
 
-        // 2. Gå framåt tills vi hittar en tabell
-        while (el && !el.nextElementSibling?.querySelector) {
-          el = el.nextElementSibling;
-        }
-
-        let next = el?.nextElementSibling;
-
+        // Scan all subsequent siblings for a .table2 roster table
+        let next = el.nextElementSibling;
         while (next) {
-          if (next.querySelectorAll) {
-            const rows = next.querySelectorAll('tr');
+          // Stop if we hit another heading (next section)
+          if (/^H[2-4]$/i.test(next.tagName)) break;
 
+          // Look for table2 roster - either this element or nested inside it
+          const tableEl = next.classList?.contains('table2') ? next : next.querySelector?.('.table2');
+          if (tableEl) {
+            const rows = tableEl.querySelectorAll('tr');
             rows.forEach(row => {
               const nickEl = row.querySelector('.inline-player a');
               if (!nickEl) return;
@@ -1074,7 +1074,6 @@
                 country: row.querySelector('.flag img')?.alt || ''
               });
             });
-
             if (players.length) break;
           }
           next = next.nextElementSibling;

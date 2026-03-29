@@ -43,7 +43,7 @@
       min-height: 100vh;
       padding: 1.5rem;
       display: grid;
-      grid-template-columns: var(--sidebar-width, 30%) minmax(200px, 1fr) 1fr;
+      grid-template-columns: var(--sidebar-width, 30%) 20% 1fr;
       grid-template-rows: auto;
       gap: 1.25rem;
       align-items: start;
@@ -479,6 +479,12 @@
       font-size: 0.7rem; color: var(--muted);
       text-align: right;
       white-space: nowrap;
+      text-decoration: none;
+      display: block;
+    }
+    a.tourn-tag:hover {
+      color: var(--accent);
+      text-decoration: underline;
     }
     .bo-tag {
       font-size: 0.65rem;
@@ -969,7 +975,7 @@
       const hasScore = !isNaN(s1Num) && !isNaN(s2Num);
 
       const tourn = card.querySelector('.match-info-tournament-name')?.textContent?.trim() || '';
-      const tournLinkEl = card.querySelector('.match-info-tournament-name a, a[href*="/dota2/"]');
+      const tournLinkEl = card.querySelector('.match-info-tournament-name a');
       const tournPage = tournLinkEl ? tournLinkEl.getAttribute('href')?.replace(/^\/dota2\//, '').replace(/#.*/, '') : '';
 
       // Best-of format
@@ -1311,7 +1317,7 @@
       (soon && !m.isLive ? `<span class="time-tag soon countdown" id="${cdId}">${formatCountdown(m.dateISO)}</span>` : '') +
       (!soon && timeStr ? `<span class="time-tag">${timeStr}</span>` : '') +
       (m.bestOf ? `<span class="bo-tag">${m.bestOf}</span>` : '') +
-      (m.tourn ? `<span class="tourn-tag">${m.tourn}</span>` : '') +
+      (m.tourn ? (m.tournPage ? `<a class="tourn-tag" href="https://liquipedia.net/dota2/${m.tournPage}" target="_blank" onclick="event.stopPropagation()" title="${m.tourn}">${m.tourn}</a>` : `<span class="tourn-tag">${m.tourn}</span>`) : '') +
       (m.stream && m.isLive ? `<button class="stream-btn" onclick="openStream('${m.stream}', '${m.t1.replace(/'/g, "\\'")} vs ${m.t2.replace(/'/g, "\\'")}', event)">&#9654; Watch</button>` : '');
 
     const rowClass = m.isLive ? 'is-live' : m.isCompleted ? 'is-completed' : 'is-upcoming';
@@ -1659,58 +1665,58 @@
   function parseStandings(tmp) {
     const results = [];
 
-    // Try prizepool table first
-    const prizeRows = tmp.querySelectorAll('.prizepooltable .csstable-widget-row:not(.prizepooltable-header)');
+    // Prizepool rows: div.csstable-widget-row with placement classes
+    const prizeRows = tmp.querySelectorAll('.csstable-widget-row[class*="background-color-"]');
     if (prizeRows.length) {
       prizeRows.forEach(row => {
         const placeEl = row.querySelector('.prizepooltable-place');
         const place = placeEl?.textContent?.trim() || '';
-        if (!place || place === 'Place') return;
+        if (!place) return;
 
         const cells = row.querySelectorAll('.csstable-widget-cell');
+
+        // Prize is typically the 2nd cell (after place)
         let prize = '';
-        let team = '';
-        let teamLogo = '';
-
-        cells.forEach(cell => {
-          const text = cell.textContent.trim();
-          if (text.match(/^\$[\d,]+/) || text.match(/^[\d,]+\s*USD/)) {
-            prize = text;
-          }
-          const teamEl = cell.querySelector('.block-team a, .team-template-text a');
-          if (teamEl && !team) {
-            team = teamEl.textContent.trim();
-            const logoEl = cell.querySelector('.team-template-image-icon img');
-            const src = logoEl?.getAttribute('src') || '';
-            teamLogo = src.startsWith('http') ? src : (src.startsWith('//') ? 'https:' + src : (src ? 'https://liquipedia.net' + src : ''));
-          }
-        });
-
-        if (team) {
-          results.push({ place, team, teamLogo, prize });
+        for (let i = 1; i < cells.length; i++) {
+          const text = cells[i]?.textContent?.trim() || '';
+          if (text.match(/^\$[\d,]+/)) { prize = text; break; }
         }
+
+        // Team name from .block-team .name a, or .block-team a
+        const nameEl = row.querySelector('.block-team .name a') || row.querySelector('.block-team a');
+        const team = nameEl?.textContent?.trim() || '';
+
+        // Team logo
+        const logoEl = row.querySelector('.team-template-image-icon img');
+        const src = logoEl?.getAttribute('src') || '';
+        const teamLogo = src.startsWith('http') ? src : (src.startsWith('//') ? 'https:' + src : (src ? 'https://liquipedia.net' + src : ''));
+
+        results.push({ place, team: team || 'TBD', teamLogo, prize });
       });
     }
 
-    // Fallback: try wikitable
+    // Fallback: rows without background-color but with prizepooltable-place
     if (results.length === 0) {
-      const tables = tmp.querySelectorAll('.wikitable');
-      tables.forEach(table => {
-        const rows = table.querySelectorAll('tr');
-        rows.forEach(row => {
-          const cells = row.querySelectorAll('td');
-          if (cells.length < 2) return;
-          const place = cells[0]?.textContent?.trim();
-          const teamEl = row.querySelector('.team-template-text a, a[href*="/dota2/"]');
-          if (teamEl && place) {
-            results.push({
-              place,
-              team: teamEl.textContent.trim(),
-              teamLogo: '',
-              prize: cells.length > 2 ? cells[cells.length - 1]?.textContent?.trim() : ''
-            });
-          }
+      const fallbackRows = tmp.querySelectorAll('.csstable-widget-row');
+      fallbackRows.forEach(row => {
+        const placeEl = row.querySelector('.prizepooltable-place');
+        if (!placeEl) return;
+        const place = placeEl.textContent.trim();
+        if (!place || place === 'Place') return;
+
+        let prize = '';
+        row.querySelectorAll('.csstable-widget-cell').forEach(cell => {
+          const text = cell.textContent.trim();
+          if (text.match(/^\$[\d,]+/) && !prize) prize = text;
         });
+
+        const nameEl = row.querySelector('.block-team .name a') || row.querySelector('.block-team a');
+        const team = nameEl?.textContent?.trim() || '';
+        const logoEl = row.querySelector('.team-template-image-icon img');
+        const src = logoEl?.getAttribute('src') || '';
+        const teamLogo = src.startsWith('http') ? src : (src.startsWith('//') ? 'https:' + src : (src ? 'https://liquipedia.net' + src : ''));
+
+        if (place) results.push({ place, team: team || 'TBD', teamLogo, prize });
       });
     }
 

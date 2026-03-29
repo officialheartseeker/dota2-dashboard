@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="referrer" content="no-referrer"/>
   <title>Dota 2 · Match Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet"/>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -809,8 +810,8 @@
       const t2 = getFullTeamName(opps[1]);
 
       // Extract team logos
-      const logo1El = opps[0]?.querySelector('.team-template-image-icon img');
-      const logo2El = opps[1]?.querySelector('.team-template-image-icon img');
+      const logo1El = opps[0]?.querySelector('.team-template-darkmode img') || opps[0]?.querySelector('.team-template-image-icon img');
+      const logo2El = opps[1]?.querySelector('.team-template-darkmode img') || opps[1]?.querySelector('.team-template-image-icon img');
       const logo1src = logo1El?.getAttribute('src') || '';
       const logo1 = logo1src.startsWith('http') ? logo1src : (logo1src.startsWith('//') ? 'https:' + logo1src : (logo1src ? 'https://liquipedia.net' + logo1src : ''));
       const logo2src = logo2El?.getAttribute('src') || '';
@@ -990,11 +991,11 @@
       if (!el) return;
       el.innerHTML = `<div class="rosters">
         <div class="roster">
-          <div class="roster-title">${m.logo1 ? `<img src="${m.logo1}" style="width:16px;height:16px;object-fit:contain;">` : ''}${m.t1}</div>
+          <div class="roster-title">${m.logo1 ? `<img src="${m.logo1}" referrerpolicy="no-referrer" style="width:16px;height:16px;object-fit:contain;">` : ''}${m.t1}</div>
           ${renderRoster(r1)}
         </div>
         <div class="roster">
-          <div class="roster-title">${m.logo2 ? `<img src="${m.logo2}" style="width:16px;height:16px;object-fit:contain;">` : ''}${m.t2}</div>
+          <div class="roster-title">${m.logo2 ? `<img src="${m.logo2}" referrerpolicy="no-referrer" style="width:16px;height:16px;object-fit:contain;">` : ''}${m.t2}</div>
           ${renderRoster(r2)}
         </div>
       </div>`;
@@ -1180,11 +1181,11 @@
         <span class="team-name left ${m.t1 === 'TBD' ? 'tbd' : ''}${isFav(m.t1) ? ' is-fav' : ''}">
           <button class="fav-btn ${isFav(m.t1) ? 'active' : ''}" onclick="toggleFav('${m.t1.replace(/'/g, "\\'")}', event)" title="Favorite">&#9733;</button>
           ${m.t1 !== 'TBD' ? `<a href="https://liquipedia.net/dota2/${encodeURI(m.t1.replace(/ /g, '_'))}" target="_blank" class="team-link" onclick="event.stopPropagation()">${m.t1}</a>` : m.t1}
-          ${m.logo1 ? `<img class="team-logo" src="${m.logo1}" alt="">` : ''}
+          ${m.logo1 ? `<img class="team-logo" src="${m.logo1}" alt="" referrerpolicy="no-referrer">` : ''}
         </span>
         <div class="score-center">${scoreHtml}</div>
         <span class="team-name right ${m.t2 === 'TBD' ? 'tbd' : ''}${isFav(m.t2) ? ' is-fav' : ''}">
-          ${m.logo2 ? `<img class="team-logo" src="${m.logo2}" alt="">` : ''}
+          ${m.logo2 ? `<img class="team-logo" src="${m.logo2}" alt="" referrerpolicy="no-referrer">` : ''}
           ${m.t2 !== 'TBD' ? `<a href="https://liquipedia.net/dota2/${encodeURI(m.t2.replace(/ /g, '_'))}" target="_blank" class="team-link" onclick="event.stopPropagation()">${m.t2}</a>` : m.t2}
           <button class="fav-btn ${isFav(m.t2) ? 'active' : ''}" onclick="toggleFav('${m.t2.replace(/'/g, "\\'")}', event)" title="Favorite">&#9733;</button>
         </span>

@@ -81,6 +81,17 @@
       border-bottom-color: var(--accent2);
     }
 
+    /* Hide ALL and CUSTOM buttons - focus on Dota 2 only */
+    .dashboard-nav button[data-view="all"],
+    .dashboard-nav button[data-view="custom"] {
+      display: none;
+    }
+
+    /* Hide custom view widget selector */
+    .widget-selector {
+      display: none !important;
+    }
+
     /* Version badge - diskret i övre vänstra hörnet */
     .version-badge {
       position: fixed;
@@ -135,6 +146,21 @@
     }
     body.no-standings {
       grid-template-columns: var(--sidebar-width, 30%) 1fr;
+    }
+
+    /* Default view: position dota widget in first column */
+    #dota-widget {
+      grid-column: 1;
+      grid-row: 2;
+    }
+
+    /* Default Dota 2 view: position all-widgets-right container spanning columns 2-3 */
+    .all-widgets-right {
+      display: flex !important;
+      flex-direction: column;
+      gap: 1.25rem;
+      grid-column: 2 / -1;
+      grid-row: 2;
     }
 
     /* All view layout - horizontal with dota left, rest right */
@@ -2566,37 +2592,19 @@
     const rankingsWidget = document.getElementById('rankings-widget');
     const rightWidgetsContainer = document.querySelector('.all-widgets-right');
 
-    if (view === 'dota2') {
-      dota2Widget.style.display = '';
-      rightWidgetsContainer.style.display = 'flex';
-      standingsWidget.style.display = '';
-      financeWidget.style.display = 'none';
-      newsWidget.style.display = 'none';
-      rankingsWidget.style.display = '';
-      renderCurrent();
+    // Always show Dota 2 view only
+    dota2Widget.style.display = '';
+    rightWidgetsContainer.style.display = 'flex';
+    standingsWidget.style.display = '';
+    financeWidget.style.display = 'none';
+    newsWidget.style.display = 'none';
+    rankingsWidget.style.display = '';
+    renderCurrent();
+
+    // Load rankings data
+    setTimeout(() => {
       loadRankingsData();
-    } else if (view === 'all') {
-      dota2Widget.style.display = '';
-      rightWidgetsContainer.style.display = 'flex';
-      standingsWidget.style.display = '';
-      financeWidget.style.display = '';
-      newsWidget.style.display = '';
-      rankingsWidget.style.display = 'none';
-      renderCurrent();
-      loadFinanceData();
-      loadNewsData();
-    } else if (view === 'custom') {
-      // Custom view - show based on saved preferences
-      dota2Widget.style.display = visibleWidgets.has('dota2-widget') ? '' : 'none';
-      rightWidgetsContainer.style.display = 'none';
-      standingsWidget.style.display = visibleWidgets.has('standings-widget') ? '' : 'none';
-      financeWidget.style.display = visibleWidgets.has('finance-widget') ? '' : 'none';
-      newsWidget.style.display = visibleWidgets.has('news-widget') ? '' : 'none';
-      rankingsWidget.style.display = visibleWidgets.has('rankings-widget') ? '' : 'none';
-      if (visibleWidgets.has('finance-widget')) loadFinanceData();
-      if (visibleWidgets.has('news-widget')) loadNewsData();
-      if (visibleWidgets.has('rankings-widget')) loadRankingsData();
-    }
+    }, 100);
   };
 
   // Widget selector event handlers (custom view)
@@ -2760,20 +2768,11 @@
     }
   }
 
-  // Restore saved view on load
-  const savedView = localStorage.getItem('dashboardView') || 'dota2';
-  if (savedView !== 'dota2') {
-    switchDashboard(savedView);
-  }
-
-  // Restore widget checkbox states on page load
-  const savedWidgets = JSON.parse(localStorage.getItem('visibleWidgets') || '["dota2-widget"]');
-  document.querySelectorAll('.widget-checkbox').forEach(checkbox => {
-    checkbox.checked = savedWidgets.includes(checkbox.dataset.widget);
-  });
+  // Initialize Dota 2 view on page load
+  switchDashboard('dota2');
 
   // Version badge
-  const VERSION = '1.0.22';
+  const VERSION = '1.0.23';
   const LAST_UPDATE = '2026-03-30';
   const versionBadge = document.createElement('div');
   versionBadge.className = 'version-badge';

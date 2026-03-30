@@ -2106,14 +2106,8 @@
       });
     });
 
-    // Restore saved order
-    const saved = JSON.parse(localStorage.getItem('d2_widget_order') || '[]');
-    if (saved.length) {
-      saved.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) document.body.appendChild(el);
-      });
-    }
+    // Clear any saved widget order (no longer used)
+    localStorage.removeItem('d2_widget_order');
   })();
 
   // ── Standings ──
@@ -2777,7 +2771,7 @@
   switchDashboard('dota2');
 
   // Version badge
-  const VERSION = '1.0.26';
+  const VERSION = '1.0.27';
   const LAST_UPDATE = '2026-03-30';
   const versionBadge = document.createElement('div');
   versionBadge.className = 'version-badge';

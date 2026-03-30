@@ -1901,15 +1901,11 @@
 
   function parseBracket(tmp) {
     const brackets = { upper: [], lower: [], grand: [] };
-    let currentRound = { name: '', matches: [] };
     let currentBracket = 'upper';
+    const allMatches = [];
 
     const wrapper = tmp.querySelector('.brkts-bracket');
-    if (!wrapper) {
-      console.log('🔍 No .brkts-bracket found');
-      return brackets;
-    }
-    console.log('🔍 Bracket wrapper found, children:', wrapper.children.length);
+    if (!wrapper) return brackets;
 
     const parseEntry = (entry) => {
       const teamEl = entry.querySelector('.name.hidden-xs, .name');
@@ -1923,48 +1919,51 @@
       return { team, score, won, logo };
     };
 
-    const children = [...wrapper.children];
-    children.forEach(child => {
-      // Round header - detect bracket type from name
-      if (child.classList.contains('brkts-round-header') || child.querySelector('.brkts-header')) {
-        if (currentRound.matches.length) {
-          brackets[currentBracket].push(currentRound);
-        }
-        const headerEl = child.querySelector('.brkts-header-option') || child.querySelector('.brkts-header');
-        const roundName = headerEl?.textContent?.trim() || '';
-        currentRound = { name: roundName, matches: [] };
+    // Collect ALL matches with their headers first
+    let currentRoundName = '';
+    [...wrapper.children].forEach(child => {
+      // Check for round header
+      const headerEl = child.querySelector('.brkts-header-option, .brkts-header');
+      if (headerEl) {
+        currentRoundName = headerEl.textContent?.trim() || '';
 
         // Detect bracket type from round name
-        if (roundName.includes('Grand')) {
+        if (currentRoundName.includes('Grand')) {
           currentBracket = 'grand';
-        } else if (roundName.includes('Lower')) {
+        } else if (currentRoundName.includes('Lower')) {
           currentBracket = 'lower';
-        } else if (roundName.includes('Upper')) {
+        } else if (currentRoundName.includes('Upper')) {
           currentBracket = 'upper';
         }
       }
 
-      // Matches
+      // Collect matches
       const matchEls = child.querySelectorAll('.brkts-match');
       matchEls.forEach(matchEl => {
         const entries = matchEl.querySelectorAll('.brkts-opponent-entry');
-        if (entries.length < 2) return;
-        currentRound.matches.push({
-          t1: parseEntry(entries[0]),
-          t2: parseEntry(entries[1])
-        });
+        if (entries.length >= 2) {
+          allMatches.push({
+            roundName: currentRoundName,
+            bracket: currentBracket,
+            match: { t1: parseEntry(entries[0]), t2: parseEntry(entries[1]) }
+          });
+        }
       });
     });
 
-    if (currentRound.matches.length) {
-      brackets[currentBracket].push(currentRound);
-    }
+    // Group matches by round, maintaining bracket type
+    const roundMap = new Map();
+    allMatches.forEach(item => {
+      const key = `${item.bracket}|${item.roundName}`;
+      if (!roundMap.has(key)) {
+        roundMap.set(key, { name: item.roundName, bracket: item.bracket, matches: [] });
+      }
+      roundMap.get(key).matches.push(item.match);
+    });
 
-    console.log('🔍 Bracket parse result:', {
-      upper: brackets.upper.length + ' rounds',
-      lower: brackets.lower.length + ' rounds',
-      grand: brackets.grand.length + ' rounds',
-      details: brackets
+    // Add to appropriate bracket
+    roundMap.forEach(round => {
+      brackets[round.bracket].push({ name: round.name, matches: round.matches });
     });
 
     return brackets;
@@ -2160,19 +2159,36 @@
         rounds = data.bracket[activeBracketTab] || [];
       }
 
-      // Build bracket grid showing rounds as columns
+      // Sort rounds logically: identify order from names or count
+      const roundOrder = ['round 1', 'round 2', 'round 3', 'round 4', 'quarterfinal', 'semifinal', 'final'];
+      rounds.sort((a, b) => {
+        const aLower = a.name.toLowerCase();
+        const bLower = b.name.toLowerCase();
+        const aIdx = roundOrder.findIndex(r => aLower.includes(r));
+        const bIdx = roundOrder.findIndex(r => bLower.includes(r));
+        if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+        return 0;
+      });
+
+      // Build bracket grid showing rounds as columns with better spacing
       html += '<div class="bracket-container">';
-      rounds.forEach(round => {
+      rounds.forEach((round, roundIdx) => {
         html += '<div class="bracket-round">';
         if (round.name) {
           html += `<div class="bracket-round-header">${round.name}</div>`;
         }
         html += '<div class="bracket-round-matches">';
 
-        round.matches.forEach(m => {
+        // Calculate spacing based on progression (fewer teams in later rounds = more space)
+        const totalMatches = rounds.reduce((sum, r) => sum + r.matches.length, 0);
+        const matchesInRound = round.matches.length;
+        const spacingFactor = Math.max(1, Math.ceil(totalMatches / matchesInRound));
+
+        round.matches.forEach((m, mIdx) => {
           const t1won = m.t1.won || (m.t1.score > m.t2.score);
           const t2won = m.t2.won || (m.t2.score > m.t1.score);
-          html += `<div class="bracket-match">
+          const marginTop = mIdx > 0 ? (spacingFactor * 0.3) + 'rem' : '0';
+          html += `<div class="bracket-match" style="margin-top: ${marginTop}">
             <div class="bracket-team ${t1won ? 'bracket-winner' : ''}">
               ${m.t1.logo ? `<img src="${m.t1.logo}" referrerpolicy="no-referrer" alt="">` : '<span class="bracket-logo-placeholder"></span>'}
               <span class="bracket-team-name">${m.t1.team}</span>
@@ -2270,7 +2286,7 @@
   updateRestoreBtn();
 
   // Version badge
-  const VERSION = '1.0.2';
+  const VERSION = '1.0.3';
   const LAST_UPDATE = '2026-03-30';
   const versionBadge = document.createElement('div');
   versionBadge.className = 'version-badge';

@@ -31,48 +31,8 @@
       position: relative;
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
-    }
-
-    .dashboard-nav {
-      display: flex;
-      gap: 0.5rem;
-      padding: 0.5rem 0;
-      border-bottom: 1px solid var(--border);
       align-items: center;
-    }
-
-    .dashboard-nav-label {
-      font-size: 0.7rem;
-      color: var(--muted);
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      font-weight: 600;
-      margin-right: 0.5rem;
-    }
-
-    .dashboard-nav button {
-      background: none;
-      border: 1px solid var(--border);
-      color: var(--muted);
-      padding: 0.4rem 0.8rem;
-      border-radius: 3px;
-      font-family: 'Rajdhani', sans-serif;
-      font-size: 0.8rem;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .dashboard-nav button:hover {
-      border-color: var(--accent2);
-      color: var(--text);
-    }
-
-    .dashboard-nav button.active {
-      background: var(--accent2);
-      border-color: var(--accent2);
-      color: var(--bg);
-      font-weight: 600;
+      border-bottom: 1px solid var(--border);
     }
 
     .main-logo {
@@ -81,15 +41,44 @@
       font-size: 2.4rem;
       letter-spacing: 0.15em;
       text-transform: uppercase;
-
       color: var(--text);
       text-align: center;
-
-      padding: 0.5rem 0;
+      padding: 0.5rem 0 0.8rem;
     }
 
     .main-logo span {
       color: var(--accent);
+    }
+
+    .dashboard-nav {
+      display: flex;
+      gap: 1.2rem;
+      padding: 0.5rem 0;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .dashboard-nav button {
+      background: none;
+      border: none;
+      color: var(--muted);
+      padding: 0.3rem 0.6rem;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: all 0.2s;
+      border-bottom: 2px solid transparent;
+    }
+
+    .dashboard-nav button:hover {
+      color: var(--text);
+    }
+
+    .dashboard-nav button.active {
+      color: var(--accent2);
+      border-bottom-color: var(--accent2);
     }
 
     /* Version badge - diskret i övre vänstra hörnet */
@@ -986,14 +975,13 @@
 <body>
   <!-- WIDGET: Main header with nav -->
   <div class="main-header">
+    <div class="main-logo">
+      Ultimate <span>Dashboard</span>
+    </div>
     <div class="dashboard-nav">
-      <span class="dashboard-nav-label">View:</span>
       <button class="nav-btn active" data-view="dota2" onclick="switchDashboard('dota2')">Dota 2</button>
       <button class="nav-btn" data-view="all" onclick="switchDashboard('all')">All Games</button>
       <button class="nav-btn" data-view="custom" onclick="switchDashboard('custom')">Custom</button>
-    </div>
-    <div class="main-logo">
-      Ultimate <span>Dashboard</span>
     </div>
   </div>
 
@@ -2379,7 +2367,7 @@
   }
 
   // Version badge
-  const VERSION = '1.0.9';
+  const VERSION = '1.0.10';
   const LAST_UPDATE = '2026-03-30';
   const versionBadge = document.createElement('div');
   versionBadge.className = 'version-badge';

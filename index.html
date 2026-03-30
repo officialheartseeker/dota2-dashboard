@@ -999,7 +999,68 @@
       .team-name { font-size: 0.8rem; }
     }
 
-    
+    /* ── CUSTOM VIEW WIDGET SELECTOR ── */
+    .widget-selector {
+      display: none;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      gap: 0.5rem;
+    }
+
+    body.custom-view .widget-selector {
+      display: flex;
+      flex-direction: column;
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+
+    .widget-selector-title {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--accent2);
+      margin-bottom: 0.5rem;
+    }
+
+    .widget-selector-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .widget-toggle {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.5rem 0.75rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .widget-toggle:hover {
+      border-color: var(--accent2);
+      background: rgba(232, 135, 42, 0.1);
+    }
+
+    .widget-toggle input[type="checkbox"] {
+      cursor: pointer;
+      accent-color: var(--accent2);
+    }
+
+    .widget-toggle label {
+      cursor: pointer;
+      flex: 1;
+      font-size: 0.8rem;
+      color: var(--text);
+    }
+
+
   </style>
 </head>
 <body>
@@ -1012,6 +1073,29 @@
       <button class="nav-btn active" data-view="dota2" onclick="switchDashboard('dota2')">Dota 2</button>
       <button class="nav-btn" data-view="all" onclick="switchDashboard('all')">All</button>
       <button class="nav-btn" data-view="custom" onclick="switchDashboard('custom')">Custom</button>
+    </div>
+  </div>
+
+  <!-- Custom view widget selector -->
+  <div class="widget-selector">
+    <div class="widget-selector-title">Select widgets to display</div>
+    <div class="widget-selector-grid">
+      <div class="widget-toggle">
+        <input type="checkbox" id="toggle-dota2" class="widget-checkbox" data-widget="dota2-widget" checked>
+        <label for="toggle-dota2">Dota 2 Matches</label>
+      </div>
+      <div class="widget-toggle">
+        <input type="checkbox" id="toggle-standings" class="widget-checkbox" data-widget="standings-widget" checked>
+        <label for="toggle-standings">Standings</label>
+      </div>
+      <div class="widget-toggle">
+        <input type="checkbox" id="toggle-finance" class="widget-checkbox" data-widget="finance-widget">
+        <label for="toggle-finance">Tesla Stock</label>
+      </div>
+      <div class="widget-toggle">
+        <input type="checkbox" id="toggle-news" class="widget-checkbox" data-widget="news-widget">
+        <label for="toggle-news">Aftonbladet</label>
+      </div>
     </div>
   </div>
 
@@ -2449,6 +2533,26 @@
     }
   };
 
+  // Widget selector event handlers (custom view)
+  function updateVisibleWidgets() {
+    const checkboxes = document.querySelectorAll('.widget-checkbox');
+    visibleWidgets.clear();
+    checkboxes.forEach(cb => {
+      if (cb.checked) {
+        visibleWidgets.add(cb.dataset.widget);
+      }
+    });
+    localStorage.setItem('visibleWidgets', JSON.stringify([...visibleWidgets]));
+    // Re-apply visibility if in custom view
+    if (currentView === 'custom') {
+      switchDashboard('custom');
+    }
+  }
+
+  document.querySelectorAll('.widget-checkbox').forEach(checkbox => {
+    checkbox.addEventListener('change', updateVisibleWidgets);
+  });
+
   // Load finance data (TSLA from free API)
   function loadFinanceData() {
     const body = document.getElementById('finance-body');
@@ -2530,8 +2634,14 @@
     switchDashboard(savedView);
   }
 
+  // Restore widget checkbox states on page load
+  const savedWidgets = JSON.parse(localStorage.getItem('visibleWidgets') || '["dota2-widget"]');
+  document.querySelectorAll('.widget-checkbox').forEach(checkbox => {
+    checkbox.checked = savedWidgets.includes(checkbox.dataset.widget);
+  });
+
   // Version badge
-  const VERSION = '1.0.17';
+  const VERSION = '1.0.18';
   const LAST_UPDATE = '2026-03-30';
   const versionBadge = document.createElement('div');
   versionBadge.className = 'version-badge';

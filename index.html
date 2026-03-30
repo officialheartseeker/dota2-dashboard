@@ -23,8 +23,35 @@
       --muted: #7d8590;
       --fav: #f59e0b;
     }
-    * { margin:0; padding:0; box-sizing:border-box; }
 
+    * { margin:0; padding:0; box-sizing:border-box; }
+    .main-logo {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 2.4rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+
+      color: var(--text);
+      text-align: center;
+
+      padding: 0.5rem 0 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .main-logo span {
+      color: var(--accent);
+    }
+
+    .main-header {
+      grid-column: 1 / -1;
+      grid-row: 1; /* 👈 SUPER VIKTIG */
+    }
+
+    /* Accent på ett ord (valfritt) */
+    .main-logo span {
+      color: var(--accent);
+    }
     /* Scale base font-size with screen width: 14px at 1280px → 18px at 2560px */
     html {
       font-size: clamp(11px, calc(9.5px + 0.24vw), 16px);
@@ -42,9 +69,10 @@
       font-family: 'IBM Plex Mono', monospace;
       min-height: 100vh;
       padding: 1.5rem;
+
       display: grid;
       grid-template-columns: var(--sidebar-width, 30%) 20% 1fr;
-      grid-template-rows: auto;
+      grid-template-rows: auto 1fr; /* 👈 NY */
       gap: 1.25rem;
       align-items: start;
     }
@@ -783,6 +811,33 @@
       border-bottom-color: var(--accent);
     }
 
+    /* Bracket */
+    .bracket-match {
+      margin: 0.3rem 0.4rem;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .bracket-team {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 0.3rem 0.5rem;
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.82rem;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    .bracket-team:last-child { border-bottom: none; }
+    .bracket-team img {
+      width: 14px; height: 14px;
+      object-fit: contain; flex-shrink: 0;
+    }
+    .bracket-logo-placeholder { width: 14px; height: 14px; flex-shrink: 0; }
+    .bracket-team-name { flex: 1; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .bracket-winner .bracket-team-name { color: var(--text); font-weight: 700; }
+    .bracket-score { font-weight: 700; color: var(--muted); min-width: 1.2rem; text-align: right; }
+    .bracket-score-win { color: var(--live); }
+
     /* Group row status */
     .standings-table tr.row-qualified { background: rgba(34, 197, 94, 0.08); }
     .standings-table tr.row-tiebreak { background: rgba(245, 158, 11, 0.08); }
@@ -805,9 +860,17 @@
       .tourn-tag { max-width: 100px; }
       .team-name { font-size: 0.8rem; }
     }
+
+    
   </style>
 </head>
 <body>
+  <!-- WIDGET: Main logo -->
+  <div class="main-header">
+    <div class="main-logo">
+      Ultimate <span>Dashboard</span>
+    </div>
+  </div>
 
   <!-- WIDGET 1: Dota 2 Matches -->
   <div class="widget" id="dota-widget">
@@ -1721,25 +1784,30 @@
 
     standingsBody.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading standings...</div>';
 
-    // Fetch both main page (prizepool) and group stage page in parallel
+    // Fetch main page, group stage page, and playoffs page in parallel
     const mainP = liquipediaXhr(tournPage).catch(() => null);
     const groupP = liquipediaXhr(tournPage + '/Group_Stage').catch(() => null);
+    const playoffsP = liquipediaXhr(tournPage + '/Playoffs').catch(() => null);
 
-    Promise.all([mainP, groupP]).then(([mainTmp, groupTmp]) => {
-      const data = { groups: [], playoffs: [] };
+    Promise.all([mainP, groupP, playoffsP]).then(([mainTmp, groupTmp, playoffsTmp]) => {
+      const data = { groups: [], playoffs: [], bracket: [] };
 
-      // Parse group stage
-      if (groupTmp) {
-        data.groups = parseGroupStage(groupTmp);
-      }
+      if (groupTmp) data.groups = parseGroupStage(groupTmp);
 
-      // Parse prizepool / playoffs from main page
       if (mainTmp) {
         data.playoffs = parsePrizepool(mainTmp);
-        // If no groups from separate page, try main page
-        if (!data.groups.length) {
-          data.groups = parseGroupStage(mainTmp);
+        if (!data.groups.length) data.groups = parseGroupStage(mainTmp);
+        // Try bracket from main page first
+        data.bracket = parseBracket(mainTmp);
+      }
+
+      // Dedicated playoffs page usually has the full bracket
+      if (playoffsTmp) {
+        const bracketFromPlayoffs = parseBracket(playoffsTmp);
+        if (bracketFromPlayoffs.length > data.bracket.length) {
+          data.bracket = bracketFromPlayoffs;
         }
+        if (!data.playoffs.length) data.playoffs = parsePrizepool(playoffsTmp);
       }
 
       standingsCache[tournPage] = data;
@@ -1747,6 +1815,55 @@
     }).catch(() => {
       standingsBody.innerHTML = '<div class="empty-state">Error loading standings</div>';
     });
+  }
+
+  function parseBracket(tmp) {
+    const rounds = [];
+    const roundEls = tmp.querySelectorAll('.brkts-round-body, .brkts-round-lower, .brkts-round-center');
+
+    // Group matches by round header
+    let currentRound = { name: '', matches: [] };
+
+    // Walk all direct children of bracket wrapper
+    const wrapper = tmp.querySelector('.brkts-bracket');
+    if (!wrapper) return rounds;
+
+    const children = [...wrapper.children];
+    children.forEach(child => {
+      // Round header
+      if (child.classList.contains('brkts-round-header') || child.querySelector('.brkts-header')) {
+        if (currentRound.matches.length) rounds.push(currentRound);
+        const headerEl = child.querySelector('.brkts-header-option') || child.querySelector('.brkts-header');
+        currentRound = { name: headerEl?.textContent?.trim() || '', matches: [] };
+      }
+
+      // Matches within this child
+      const matchEls = child.querySelectorAll('.brkts-match');
+      matchEls.forEach(matchEl => {
+        const entries = matchEl.querySelectorAll('.brkts-opponent-entry');
+        if (entries.length < 2) return;
+
+        const parseEntry = (entry) => {
+          const teamEl = entry.querySelector('.name.hidden-xs, .name');
+          const team = entry.getAttribute('aria-label') || teamEl?.textContent?.trim() || 'TBD';
+          const scoreEl = entry.querySelector('.brkts-opponent-score-inner');
+          const score = scoreEl?.textContent?.trim() || '';
+          const won = entry.querySelector('.brkts-opponent-win') !== null || entry.classList.contains('brkts-opponent-win') || (scoreEl && scoreEl.querySelector('b'));
+          const logoEl = entry.querySelector('.team-template-darkmode img') || entry.querySelector('.team-template-image-icon img');
+          const src = logoEl?.getAttribute('src') || '';
+          const logo = src.startsWith('http') ? src : (src.startsWith('//') ? 'https:' + src : (src ? 'https://liquipedia.net' + src : ''));
+          return { team, score, won, logo };
+        };
+
+        currentRound.matches.push({
+          t1: parseEntry(entries[0]),
+          t2: parseEntry(entries[1])
+        });
+      });
+    });
+
+    if (currentRound.matches.length) rounds.push(currentRound);
+    return rounds;
   }
 
   function parseGroupStage(tmp) {
@@ -1872,27 +1989,30 @@
   function renderStandingsFull(data, tournName) {
     const hasGroups = data.groups.length > 0;
     const hasPlayoffs = data.playoffs.length > 0;
+    const hasBracket = data.bracket && data.bracket.length > 0;
 
-    if (!hasGroups && !hasPlayoffs) {
+    if (!hasGroups && !hasPlayoffs && !hasBracket) {
       standingsBody.innerHTML = '<div class="empty-state">No standings data available</div>';
       return;
     }
 
+    // Auto-select available tab
+    if (activeStandingsTab === 'groups' && !hasGroups) activeStandingsTab = hasBracket ? 'bracket' : 'playoffs';
+    if (activeStandingsTab === 'bracket' && !hasBracket) activeStandingsTab = hasGroups ? 'groups' : 'playoffs';
+    if (activeStandingsTab === 'playoffs' && !hasPlayoffs) activeStandingsTab = hasGroups ? 'groups' : 'bracket';
+
     // Tab bar
     let html = '<div class="standings-tabs">';
-    if (hasGroups) html += `<button class="standings-tab ${activeStandingsTab === 'groups' ? 'active' : ''}" onclick="switchStandingsTab('groups')">Groups</button>`;
+    if (hasGroups)   html += `<button class="standings-tab ${activeStandingsTab === 'groups'   ? 'active' : ''}" onclick="switchStandingsTab('groups')">Groups</button>`;
+    if (hasBracket)  html += `<button class="standings-tab ${activeStandingsTab === 'bracket'  ? 'active' : ''}" onclick="switchStandingsTab('bracket')">Bracket</button>`;
     if (hasPlayoffs) html += `<button class="standings-tab ${activeStandingsTab === 'playoffs' ? 'active' : ''}" onclick="switchStandingsTab('playoffs')">Results</button>`;
     html += '</div>';
-
-    // Auto-select available tab
-    if (activeStandingsTab === 'groups' && !hasGroups) activeStandingsTab = 'playoffs';
-    if (activeStandingsTab === 'playoffs' && !hasPlayoffs) activeStandingsTab = 'groups';
 
     if (activeStandingsTab === 'groups' && hasGroups) {
       data.groups.forEach(g => {
         html += `<div class="standings-group-header">${g.name}</div>`;
         html += `<table class="standings-table">
-          <thead><tr><th>#</th><th>Team</th><th>W-D-L</th><th>Maps</th></tr></thead><tbody>`;
+          <thead><tr><th>#</th><th>Team</th><th style="text-align:center">W-D-L</th><th style="text-align:center">Maps</th></tr></thead><tbody>`;
         g.teams.forEach(t => {
           let statusClass = '';
           if (t.status === 'up') statusClass = 'row-qualified';
@@ -1910,6 +2030,26 @@
           </tr>`;
         });
         html += '</tbody></table>';
+      });
+    } else if (activeStandingsTab === 'bracket' && hasBracket) {
+      data.bracket.forEach(round => {
+        if (round.name) html += `<div class="standings-group-header">${round.name}</div>`;
+        round.matches.forEach(m => {
+          const t1won = m.t1.won || (m.t1.score > m.t2.score);
+          const t2won = m.t2.won || (m.t2.score > m.t1.score);
+          html += `<div class="bracket-match">
+            <div class="bracket-team ${t1won ? 'bracket-winner' : ''}">
+              ${m.t1.logo ? `<img src="${m.t1.logo}" referrerpolicy="no-referrer" alt="">` : '<span class="bracket-logo-placeholder"></span>'}
+              <span class="bracket-team-name">${m.t1.team}</span>
+              <span class="bracket-score ${t1won ? 'bracket-score-win' : ''}">${m.t1.score || '-'}</span>
+            </div>
+            <div class="bracket-team ${t2won ? 'bracket-winner' : ''}">
+              ${m.t2.logo ? `<img src="${m.t2.logo}" referrerpolicy="no-referrer" alt="">` : '<span class="bracket-logo-placeholder"></span>'}
+              <span class="bracket-team-name">${m.t2.team}</span>
+              <span class="bracket-score ${t2won ? 'bracket-score-win' : ''}">${m.t2.score || '-'}</span>
+            </div>
+          </div>`;
+        });
       });
     } else if (activeStandingsTab === 'playoffs' && hasPlayoffs) {
       html += `<table class="standings-table">
@@ -1982,5 +2122,6 @@
   initViewerCounter();
   updateRestoreBtn();
 </script>
+</div>
 </body>
 </html>

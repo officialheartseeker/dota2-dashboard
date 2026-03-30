@@ -2656,6 +2656,13 @@
   }
 
   // Load rankings data (Top 30 teams)
+  let rankingsExpanded = false;
+
+  function toggleRankingsExpand() {
+    rankingsExpanded = !rankingsExpanded;
+    loadRankingsData();
+  }
+
   function loadRankingsData() {
     const body = document.getElementById('rankings-body');
 
@@ -2694,11 +2701,20 @@
     ];
 
     try {
+      const displayedRankings = rankingsExpanded ? rankings : rankings.slice(0, 10);
       let html = '<table class="rankings-table"><thead><tr><th style="width:3rem;">Rank</th><th>Team</th><th style="width:4rem;">Points</th></tr></thead><tbody>';
-      rankings.forEach(r => {
+      displayedRankings.forEach(r => {
         html += `<tr><td class="rank">#${r.rank}</td><td class="team-name">${r.team}</td><td class="points">${r.points.toLocaleString()}</td></tr>`;
       });
       html += '</tbody></table>';
+
+      // Add expand/collapse button
+      if (!rankingsExpanded) {
+        html += '<button onclick="toggleRankingsExpand()" style="width:100%;padding:0.5rem;margin-top:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;transition:all 0.2s;">▼ Expand to see all 30 teams</button>';
+      } else {
+        html += '<button onclick="toggleRankingsExpand()" style="width:100%;padding:0.5rem;margin-top:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;transition:all 0.2s;">▲ Collapse to top 10</button>';
+      }
+
       body.innerHTML = html;
     } catch (err) {
       body.innerHTML = '<div class="empty-state">Unable to load rankings</div>';
@@ -2751,7 +2767,7 @@
   });
 
   // Version badge
-  const VERSION = '1.0.20';
+  const VERSION = '1.0.21';
   const LAST_UPDATE = '2026-03-30';
   const versionBadge = document.createElement('div');
   versionBadge.className = 'version-badge';

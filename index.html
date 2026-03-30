@@ -1901,8 +1901,6 @@
 
   function parseBracket(tmp) {
     const brackets = { upper: [], lower: [], grand: [] };
-    let currentBracket = 'upper';
-    const allMatches = [];
 
     const wrapper = tmp.querySelector('.brkts-bracket');
     if (!wrapper) return brackets;
@@ -1919,52 +1917,64 @@
       return { team, score, won, logo };
     };
 
-    // Collect ALL matches with their headers first
-    let currentRoundName = '';
-    [...wrapper.children].forEach(child => {
-      // Check for round header
-      const headerEl = child.querySelector('.brkts-header-option, .brkts-header');
-      if (headerEl) {
-        currentRoundName = headerEl.textContent?.trim() || '';
+    // Real Liquipedia structure:
+    // wrapper children alternate: [brkts-round-header, brkts-round-body, brkts-round-header, brkts-round-body, ...]
+    // Each brkts-round-header contains N brkts-header-div (one per round column)
+    // Each brkts-round-body contains N brkts-round-center descendants (one per round column, in document order)
+    // header[i] pairs with round-center[i]
 
-        // Detect bracket type from round name
-        if (currentRoundName.includes('Grand')) {
-          currentBracket = 'grand';
-        } else if (currentRoundName.includes('Lower')) {
-          currentBracket = 'lower';
-        } else if (currentRoundName.includes('Upper')) {
-          currentBracket = 'upper';
-        }
-      }
+    const children = [...wrapper.children];
+    let i = 0;
 
-      // Collect matches
-      const matchEls = child.querySelectorAll('.brkts-match');
-      matchEls.forEach(matchEl => {
-        const entries = matchEl.querySelectorAll('.brkts-opponent-entry');
-        if (entries.length >= 2) {
-          allMatches.push({
-            roundName: currentRoundName,
-            bracket: currentBracket,
-            match: { t1: parseEntry(entries[0]), t2: parseEntry(entries[1]) }
+    while (i < children.length) {
+      const child = children[i];
+
+      if (child.classList.contains('brkts-round-header')) {
+        // Extract round names from each header-div (use first header-option = full name)
+        const headerDivs = [...child.querySelectorAll('.brkts-header-div')];
+        const roundNames = headerDivs.map(div => {
+          const firstOpt = div.querySelector('.brkts-header-option');
+          return firstOpt?.textContent?.trim() || div.firstChild?.textContent?.trim() || '';
+        });
+
+        // Paired body is next sibling
+        const body = children[i + 1];
+        if (body && body.classList.contains('brkts-round-body')) {
+          // All brkts-round-centers in document order correspond to rounds in header order
+          const roundCenters = [...body.querySelectorAll('.brkts-round-center')];
+
+          roundNames.forEach((name, idx) => {
+            const center = roundCenters[idx];
+            if (!center) return;
+
+            // Determine bracket type from round name
+            let bt = 'upper';
+            if (name.toLowerCase().includes('grand')) bt = 'grand';
+            else if (name.toLowerCase().includes('lower') || /^lb/i.test(name)) bt = 'lower';
+
+            // Collect matches from this center only (exclude popup content)
+            const matches = [];
+            center.querySelectorAll('.brkts-match').forEach(matchEl => {
+              if (matchEl.closest('.brkts-popup')) return;
+              const entries = matchEl.querySelectorAll(':scope > .brkts-opponent-entry, :scope > div > .brkts-opponent-entry');
+              const allEntries = matchEl.querySelectorAll('.brkts-opponent-entry');
+              const use = entries.length >= 2 ? entries : allEntries;
+              if (use.length >= 2) {
+                matches.push({ t1: parseEntry(use[0]), t2: parseEntry(use[1]) });
+              }
+            });
+
+            if (matches.length) brackets[bt].push({ name, matches });
           });
+
+          i += 2;
+        } else {
+          i++;
         }
-      });
-    });
-
-    // Group matches by round, maintaining bracket type
-    const roundMap = new Map();
-    allMatches.forEach(item => {
-      const key = `${item.bracket}|${item.roundName}`;
-      if (!roundMap.has(key)) {
-        roundMap.set(key, { name: item.roundName, bracket: item.bracket, matches: [] });
+      } else {
+        i++;
       }
-      roundMap.get(key).matches.push(item.match);
-    });
-
-    // Add to appropriate bracket
-    roundMap.forEach(round => {
-      brackets[round.bracket].push({ name: round.name, matches: round.matches });
-    });
+    }
 
     return brackets;
   }
@@ -2286,7 +2296,7 @@
   updateRestoreBtn();
 
   // Version badge
-  const VERSION = '1.0.3';
+  const VERSION = '1.0.4';
   const LAST_UPDATE = '2026-03-30';
   const versionBadge = document.createElement('div');
   versionBadge.className = 'version-badge';

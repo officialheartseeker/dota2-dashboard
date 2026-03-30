@@ -1884,7 +1884,9 @@
       // Dedicated playoffs page usually has the full bracket
       if (playoffsTmp) {
         const bracketFromPlayoffs = parseBracket(playoffsTmp);
-        if (bracketFromPlayoffs.length > data.bracket.length) {
+        const currentTotal = (data.bracket.upper?.length || 0) + (data.bracket.lower?.length || 0) + (data.bracket.grand?.length || 0);
+        const playoffsTotal = (bracketFromPlayoffs.upper?.length || 0) + (bracketFromPlayoffs.lower?.length || 0) + (bracketFromPlayoffs.grand?.length || 0);
+        if (playoffsTotal > currentTotal) {
           data.bracket = bracketFromPlayoffs;
         }
         if (!data.playoffs.length) data.playoffs = parsePrizepool(playoffsTmp);

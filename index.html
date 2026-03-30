@@ -811,6 +811,32 @@
       border-bottom-color: var(--accent);
     }
 
+    /* Bracket sub-tabs */
+    .bracket-subtabs {
+      display: flex;
+      gap: 0;
+      border-bottom: 1px solid var(--border);
+      padding: 0 0.4rem;
+      margin-bottom: 0.5rem;
+    }
+    .bracket-tab {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 0.4rem 0.7rem;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .bracket-tab:hover { color: var(--text); }
+    .bracket-tab.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
     /* Bracket */
     .bracket-match {
       margin: 0.3rem 0.4rem;
@@ -1819,43 +1845,51 @@
   }
 
   function parseBracket(tmp) {
-    const rounds = [];
-    const roundEls = tmp.querySelectorAll('.brkts-round-body, .brkts-round-lower, .brkts-round-center');
-
-    // Group matches by round header
+    const brackets = { upper: [], lower: [], grand: [] };
     let currentRound = { name: '', matches: [] };
+    let currentBracket = 'upper';
 
-    // Walk all direct children of bracket wrapper
     const wrapper = tmp.querySelector('.brkts-bracket');
-    if (!wrapper) return rounds;
+    if (!wrapper) return brackets;
+
+    const parseEntry = (entry) => {
+      const teamEl = entry.querySelector('.name.hidden-xs, .name');
+      const team = entry.getAttribute('aria-label') || teamEl?.textContent?.trim() || 'TBD';
+      const scoreEl = entry.querySelector('.brkts-opponent-score-inner');
+      const score = scoreEl?.textContent?.trim() || '';
+      const won = entry.querySelector('.brkts-opponent-win') !== null || entry.classList.contains('brkts-opponent-win') || (scoreEl && scoreEl.querySelector('b'));
+      const logoEl = entry.querySelector('.team-template-darkmode img') || entry.querySelector('.team-template-image-icon img');
+      const src = logoEl?.getAttribute('src') || '';
+      const logo = src.startsWith('http') ? src : (src.startsWith('//') ? 'https:' + src : (src ? 'https://liquipedia.net' + src : ''));
+      return { team, score, won, logo };
+    };
 
     const children = [...wrapper.children];
     children.forEach(child => {
-      // Round header
+      // Round header - detect bracket type from name
       if (child.classList.contains('brkts-round-header') || child.querySelector('.brkts-header')) {
-        if (currentRound.matches.length) rounds.push(currentRound);
+        if (currentRound.matches.length) {
+          brackets[currentBracket].push(currentRound);
+        }
         const headerEl = child.querySelector('.brkts-header-option') || child.querySelector('.brkts-header');
-        currentRound = { name: headerEl?.textContent?.trim() || '', matches: [] };
+        const roundName = headerEl?.textContent?.trim() || '';
+        currentRound = { name: roundName, matches: [] };
+
+        // Detect bracket type from round name
+        if (roundName.includes('Grand')) {
+          currentBracket = 'grand';
+        } else if (roundName.includes('Lower')) {
+          currentBracket = 'lower';
+        } else if (roundName.includes('Upper')) {
+          currentBracket = 'upper';
+        }
       }
 
-      // Matches within this child
+      // Matches
       const matchEls = child.querySelectorAll('.brkts-match');
       matchEls.forEach(matchEl => {
         const entries = matchEl.querySelectorAll('.brkts-opponent-entry');
         if (entries.length < 2) return;
-
-        const parseEntry = (entry) => {
-          const teamEl = entry.querySelector('.name.hidden-xs, .name');
-          const team = entry.getAttribute('aria-label') || teamEl?.textContent?.trim() || 'TBD';
-          const scoreEl = entry.querySelector('.brkts-opponent-score-inner');
-          const score = scoreEl?.textContent?.trim() || '';
-          const won = entry.querySelector('.brkts-opponent-win') !== null || entry.classList.contains('brkts-opponent-win') || (scoreEl && scoreEl.querySelector('b'));
-          const logoEl = entry.querySelector('.team-template-darkmode img') || entry.querySelector('.team-template-image-icon img');
-          const src = logoEl?.getAttribute('src') || '';
-          const logo = src.startsWith('http') ? src : (src.startsWith('//') ? 'https:' + src : (src ? 'https://liquipedia.net' + src : ''));
-          return { team, score, won, logo };
-        };
-
         currentRound.matches.push({
           t1: parseEntry(entries[0]),
           t2: parseEntry(entries[1])
@@ -1863,8 +1897,11 @@
       });
     });
 
-    if (currentRound.matches.length) rounds.push(currentRound);
-    return rounds;
+    if (currentRound.matches.length) {
+      brackets[currentBracket].push(currentRound);
+    }
+
+    return brackets;
   }
 
   function parseGroupStage(tmp) {
@@ -1987,10 +2024,12 @@
     return results;
   }
 
+  let activeBracketTab = 'upper';
+
   function renderStandingsFull(data, tournName) {
     const hasGroups = data.groups.length > 0;
     const hasPlayoffs = data.playoffs.length > 0;
-    const hasBracket = data.bracket && data.bracket.length > 0;
+    const hasBracket = data.bracket && (data.bracket.upper?.length > 0 || data.bracket.lower?.length > 0 || data.bracket.grand?.length > 0);
 
     if (!hasGroups && !hasPlayoffs && !hasBracket) {
       standingsBody.innerHTML = '<div class="empty-state">No standings data available</div>';
@@ -2033,7 +2072,29 @@
         html += '</tbody></table>';
       });
     } else if (activeStandingsTab === 'bracket' && hasBracket) {
-      data.bracket.forEach(round => {
+      // Bracket sub-tabs
+      const bracketTabs = [];
+      if (data.bracket.upper?.length) bracketTabs.push('upper');
+      if (data.bracket.lower?.length) bracketTabs.push('lower');
+      if (data.bracket.grand?.length) bracketTabs.push('grand');
+
+      if (bracketTabs.length > 1) {
+        html += '<div class="bracket-subtabs">';
+        bracketTabs.forEach(tab => {
+          const label = tab.charAt(0).toUpperCase() + tab.slice(1) + (tab === 'grand' ? ' Final' : ' Bracket');
+          html += `<button class="bracket-tab ${activeBracketTab === tab ? 'active' : ''}" onclick="switchBracketTab('${tab}')">${label}</button>`;
+        });
+        html += '</div>';
+      }
+
+      // Render selected bracket type
+      const rounds = data.bracket[activeBracketTab] || [];
+      if (!rounds.length) {
+        activeBracketTab = bracketTabs[0] || 'upper';
+        const rounds = data.bracket[activeBracketTab] || [];
+      }
+
+      rounds.forEach(round => {
         if (round.name) html += `<div class="standings-group-header">${round.name}</div>`;
         round.matches.forEach(m => {
           const t1won = m.t1.won || (m.t1.score > m.t2.score);
@@ -2079,6 +2140,15 @@
   window.switchStandingsTab = function(tab) {
     activeStandingsTab = tab;
     // Re-render with cached data
+    const page = standingsSelect.value;
+    if (page && standingsCache[page]) {
+      const name = standingsSelect.options[standingsSelect.selectedIndex]?.text || '';
+      renderStandingsFull(standingsCache[page], name);
+    }
+  };
+
+  window.switchBracketTab = function(tab) {
+    activeBracketTab = tab;
     const page = standingsSelect.value;
     if (page && standingsCache[page]) {
       const name = standingsSelect.options[standingsSelect.selectedIndex]?.text || '';

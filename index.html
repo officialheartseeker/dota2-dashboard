@@ -137,22 +137,33 @@
       grid-template-columns: var(--sidebar-width, 30%) 1fr;
     }
 
-    /* All view layout - wrap widgets */
+    /* All view layout - horizontal with dota left, rest right */
     body.all-view {
-      grid-template-columns: 1fr;
-      grid-template-rows: auto auto;
+      grid-template-columns: var(--sidebar-width, 30%) 1fr;
+      grid-template-rows: auto 1fr;
     }
     body.all-view #dota-widget {
       grid-column: 1;
+      grid-row: 2;
     }
     body.all-view #standings-widget {
-      grid-column: 1;
+      grid-column: 2;
+      grid-row: 2;
     }
     body.all-view #finance-widget {
-      grid-column: 1;
+      grid-column: 2;
+      grid-row: 2;
     }
     body.all-view #news-widget {
-      grid-column: 1;
+      grid-column: 2;
+      grid-row: 2;
+    }
+
+    /* Stack right-side widgets vertically in a flex container */
+    body.all-view .all-widgets-right {
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
     }
 
     /* ── RESIZE HANDLE (integrated in widget right edge) ── */
@@ -1036,48 +1047,51 @@
     </div>
   </div>
 
-  <!-- WIDGET 2: Tournament Standings -->
-  <div class="standings-widget" id="standings-widget" draggable="true">
-    <div class="widget-header" style="position:relative;">
-      <div class="drag-handle" title="Drag to reposition">⠿</div>
-      <div class="widget-title">
-        <div class="logo-icon" style="background:#1a6b3c;">ST</div>
-        <div class="widget-label">Standings</div>
+  <!-- WIDGET 2-4 Container for right-side widgets in All view -->
+  <div class="all-widgets-right" style="display:none;">
+    <!-- WIDGET 2: Tournament Standings -->
+    <div class="standings-widget" id="standings-widget" draggable="true">
+      <div class="widget-header" style="position:relative;">
+        <div class="drag-handle" title="Drag to reposition">⠿</div>
+        <div class="widget-title">
+          <div class="logo-icon" style="background:#1a6b3c;">ST</div>
+          <div class="widget-label">Standings</div>
+        </div>
+        <select id="standings-tourn-select" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:0.25rem 0.4rem;font-size:0.75rem;max-width:200px;">
+          <option value="">Select tournament</option>
+        </select>
       </div>
-      <select id="standings-tourn-select" style="background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:4px;padding:0.25rem 0.4rem;font-size:0.75rem;max-width:200px;">
-        <option value="">Select tournament</option>
-      </select>
+      <div class="widget-body" id="standings-body">
+        <div class="empty-state">Select a tournament or click a match to view standings</div>
+      </div>
     </div>
-    <div class="widget-body" id="standings-body">
-      <div class="empty-state">Select a tournament or click a match to view standings</div>
-    </div>
-  </div>
 
-  <!-- WIDGET 3: Yahoo Finance TSLA -->
-  <div class="widget" id="finance-widget" draggable="true" style="display:none;">
-    <div class="widget-header">
-      <div class="drag-handle" title="Drag to reposition">⠿</div>
-      <div class="widget-title">
-        <div class="logo-icon" style="background:#110e0f;font-size:0.65rem;">$</div>
-        <div class="widget-label">Tesla · Stock</div>
+    <!-- WIDGET 3: Yahoo Finance TSLA -->
+    <div class="widget" id="finance-widget" draggable="true" style="display:none;">
+      <div class="widget-header">
+        <div class="drag-handle" title="Drag to reposition">⠿</div>
+        <div class="widget-title">
+          <div class="logo-icon" style="background:#110e0f;font-size:0.65rem;">$</div>
+          <div class="widget-label">Tesla · Stock</div>
+        </div>
+      </div>
+      <div class="widget-body" id="finance-body">
+        <div class="loading-state"><div class="loader"></div>Loading TSLA...</div>
       </div>
     </div>
-    <div class="widget-body" id="finance-body">
-      <div class="loading-state"><div class="loader"></div>Loading TSLA...</div>
-    </div>
-  </div>
 
-  <!-- WIDGET 4: Aftonbladet News -->
-  <div class="widget" id="news-widget" draggable="true" style="display:none;">
-    <div class="widget-header">
-      <div class="drag-handle" title="Drag to reposition">⠿</div>
-      <div class="widget-title">
-        <div class="logo-icon" style="background:#c41e3a;">AB</div>
-        <div class="widget-label">Aftonbladet · News</div>
+    <!-- WIDGET 4: Aftonbladet News -->
+    <div class="widget" id="news-widget" draggable="true" style="display:none;">
+      <div class="widget-header">
+        <div class="drag-handle" title="Drag to reposition">⠿</div>
+        <div class="widget-title">
+          <div class="logo-icon" style="background:#c41e3a;">AB</div>
+          <div class="widget-label">Aftonbladet · News</div>
+        </div>
       </div>
-    </div>
-    <div class="widget-body" id="news-body">
-      <div class="loading-state"><div class="loader"></div>Loading news...</div>
+      <div class="widget-body" id="news-body">
+        <div class="loading-state"><div class="loader"></div>Loading news...</div>
+      </div>
     </div>
   </div>
 
@@ -2405,15 +2419,18 @@
     const standingsWidget = document.getElementById('standings-widget');
     const financeWidget = document.getElementById('finance-widget');
     const newsWidget = document.getElementById('news-widget');
+    const rightWidgetsContainer = document.querySelector('.all-widgets-right');
 
     if (view === 'dota2') {
       dota2Widget.style.display = '';
+      rightWidgetsContainer.style.display = 'none';
       standingsWidget.style.display = '';
       financeWidget.style.display = 'none';
       newsWidget.style.display = 'none';
       renderCurrent();
     } else if (view === 'all') {
       dota2Widget.style.display = '';
+      rightWidgetsContainer.style.display = 'flex';
       standingsWidget.style.display = '';
       financeWidget.style.display = '';
       newsWidget.style.display = '';
@@ -2423,6 +2440,7 @@
     } else if (view === 'custom') {
       // Custom view - show based on saved preferences
       dota2Widget.style.display = visibleWidgets.has('dota2-widget') ? '' : 'none';
+      rightWidgetsContainer.style.display = 'none';
       standingsWidget.style.display = visibleWidgets.has('standings-widget') ? '' : 'none';
       financeWidget.style.display = visibleWidgets.has('finance-widget') ? '' : 'none';
       newsWidget.style.display = visibleWidgets.has('news-widget') ? '' : 'none';
@@ -2513,7 +2531,7 @@
   }
 
   // Version badge
-  const VERSION = '1.0.16';
+  const VERSION = '1.0.17';
   const LAST_UPDATE = '2026-03-30';
   const versionBadge = document.createElement('div');
   versionBadge.className = 'version-badge';

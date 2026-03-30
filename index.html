@@ -1123,17 +1123,18 @@
       const diffFuture = matchDate ? (matchDate - now) : null;
 
       const isUpcoming = matchDate && diffFuture > 0;
+
+      // isCompleted: has a final score (not tied/close = not still playing)
+      const isCompleted =
+        hasScore &&
+        (Math.abs(s1Num - s2Num) > 1 || diffPast > 30 * 60 * 1000);
+
+      // isLive: match started recently, no final score yet, or currently streaming
       const isLive =
         matchDate &&
         diffPast >= 0 &&
-        diffPast < 6 * 60 * 60 * 1000 &&
-        (!hasScore || s1Num === s2Num || Math.abs(s1Num - s2Num) <= 1);
-
-      const isCompleted =
-        hasScore &&
-        matchDate &&
-        diffPast > 60 * 60 * 1000 &&
-        !isLive;
+        diffPast < 4 * 60 * 60 * 1000 &&
+        !isCompleted;
 
       if (matchDate && diffPast > 3 * 24 * 60 * 60 * 1000) return;
 

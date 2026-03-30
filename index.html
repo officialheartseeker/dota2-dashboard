@@ -139,13 +139,10 @@
       padding: 1.5rem;
 
       display: grid;
-      grid-template-columns: var(--sidebar-width, 30%) 20% 1fr;
+      grid-template-columns: var(--sidebar-width, 30%) 1fr;
       grid-template-rows: auto 1fr;
       gap: 1.25rem;
       align-items: start;
-    }
-    body.no-standings {
-      grid-template-columns: var(--sidebar-width, 30%) 1fr;
     }
 
     /* Default view: position dota widget in first column */
@@ -154,12 +151,12 @@
       grid-row: 2;
     }
 
-    /* Default Dota 2 view: position all-widgets-right container spanning columns 2-3 */
+    /* Default Dota 2 view: flex container for standings and rankings */
     .all-widgets-right {
       display: flex !important;
       flex-direction: column;
       gap: 1.25rem;
-      grid-column: 2 / -1;
+      grid-column: 2;
       grid-row: 2;
     }
 
@@ -2772,7 +2769,7 @@
   switchDashboard('dota2');
 
   // Version badge
-  const VERSION = '1.0.23';
+  const VERSION = '1.0.24';
   const LAST_UPDATE = '2026-03-30';
   const versionBadge = document.createElement('div');
   versionBadge.className = 'version-badge';

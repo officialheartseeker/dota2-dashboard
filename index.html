@@ -1056,6 +1056,46 @@
       color: var(--text);
     }
 
+    /* ── RANKINGS TABLE ── */
+    .rankings-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.75rem;
+    }
+    .rankings-table th {
+      background: var(--surface);
+      color: var(--accent2);
+      padding: 0.5rem 0.4rem;
+      text-align: left;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+    .rankings-table td {
+      padding: 0.4rem;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+    .rankings-table tr:hover {
+      background: rgba(232, 135, 42, 0.05);
+    }
+    .rankings-table .rank {
+      color: var(--accent2);
+      font-weight: 700;
+      width: 3rem;
+      text-align: center;
+    }
+    .rankings-table .team-name {
+      flex: 1;
+    }
+    .rankings-table .points {
+      text-align: right;
+      color: var(--live);
+      font-weight: 600;
+      width: 4rem;
+    }
+
 
   </style>
 </head>
@@ -1091,6 +1131,10 @@
       <div class="widget-toggle">
         <input type="checkbox" id="toggle-news" class="widget-checkbox" data-widget="news-widget">
         <label for="toggle-news">Aftonbladet</label>
+      </div>
+      <div class="widget-toggle">
+        <input type="checkbox" id="toggle-rankings" class="widget-checkbox" data-widget="rankings-widget">
+        <label for="toggle-rankings">World Rankings</label>
       </div>
     </div>
   </div>
@@ -1171,6 +1215,20 @@
       </div>
       <div class="widget-body" id="news-body">
         <div class="loading-state"><div class="loader"></div>Loading news...</div>
+      </div>
+    </div>
+
+    <!-- WIDGET 5: World Rankings -->
+    <div class="widget" id="rankings-widget" draggable="true" style="display:none;">
+      <div class="widget-header">
+        <div class="drag-handle" title="Drag to reposition">⠿</div>
+        <div class="widget-title">
+          <div class="logo-icon" style="background:#6b5c9d;">WR</div>
+          <div class="widget-label">World Rankings</div>
+        </div>
+      </div>
+      <div class="widget-body" id="rankings-body">
+        <div class="loading-state"><div class="loader"></div>Loading rankings...</div>
       </div>
     </div>
   </div>
@@ -2499,21 +2557,25 @@
     const standingsWidget = document.getElementById('standings-widget');
     const financeWidget = document.getElementById('finance-widget');
     const newsWidget = document.getElementById('news-widget');
+    const rankingsWidget = document.getElementById('rankings-widget');
     const rightWidgetsContainer = document.querySelector('.all-widgets-right');
 
     if (view === 'dota2') {
       dota2Widget.style.display = '';
-      rightWidgetsContainer.style.display = 'none';
+      rightWidgetsContainer.style.display = 'flex';
       standingsWidget.style.display = '';
       financeWidget.style.display = 'none';
       newsWidget.style.display = 'none';
+      rankingsWidget.style.display = '';
       renderCurrent();
+      loadRankingsData();
     } else if (view === 'all') {
       dota2Widget.style.display = '';
       rightWidgetsContainer.style.display = 'flex';
       standingsWidget.style.display = '';
       financeWidget.style.display = '';
       newsWidget.style.display = '';
+      rankingsWidget.style.display = 'none';
       renderCurrent();
       loadFinanceData();
       loadNewsData();
@@ -2524,8 +2586,10 @@
       standingsWidget.style.display = visibleWidgets.has('standings-widget') ? '' : 'none';
       financeWidget.style.display = visibleWidgets.has('finance-widget') ? '' : 'none';
       newsWidget.style.display = visibleWidgets.has('news-widget') ? '' : 'none';
+      rankingsWidget.style.display = visibleWidgets.has('rankings-widget') ? '' : 'none';
       if (visibleWidgets.has('finance-widget')) loadFinanceData();
       if (visibleWidgets.has('news-widget')) loadNewsData();
+      if (visibleWidgets.has('rankings-widget')) loadRankingsData();
     }
   };
 
@@ -2591,6 +2655,56 @@
       });
   }
 
+  // Load rankings data (Top 30 teams)
+  function loadRankingsData() {
+    const body = document.getElementById('rankings-body');
+
+    // Top 30 Dota 2 teams (DLTV rankings as of March 30, 2026)
+    const rankings = [
+      { rank: 1, team: 'Tundra Esports', points: 1861 },
+      { rank: 2, team: 'Team Yandex', points: 1575 },
+      { rank: 3, team: 'Team Liquid', points: 1219 },
+      { rank: 4, team: 'Team Falcons', points: 1033 },
+      { rank: 5, team: 'Team Spirit', points: 898 },
+      { rank: 6, team: 'Aurora', points: 754 },
+      { rank: 7, team: 'BetBoom Team', points: 751 },
+      { rank: 8, team: 'Xtreme Gaming', points: 703 },
+      { rank: 9, team: 'MOUZ', points: 671 },
+      { rank: 10, team: 'PARIVISION', points: 600 },
+      { rank: 11, team: 'Natus Vincere', points: 538 },
+      { rank: 12, team: 'Heroic', points: 478 },
+      { rank: 13, team: 'OG', points: 349 },
+      { rank: 14, team: 'GamerLegion', points: 298 },
+      { rank: 15, team: 'Vici Gaming', points: 284 },
+      { rank: 16, team: 'Rekonix', points: 232 },
+      { rank: 17, team: 'Power Rangers', points: 227 },
+      { rank: 18, team: 'paiN Gaming', points: 223 },
+      { rank: 19, team: 'Execration', points: 186 },
+      { rank: 20, team: 'Nigma Galaxy', points: 185 },
+      { rank: 21, team: 'Virtus.pro', points: 174 },
+      { rank: 22, team: 'Team Nemesis', points: 144 },
+      { rank: 23, team: '1win Team', points: 120 },
+      { rank: 24, team: 'Yakult Brothers', points: 119 },
+      { rank: 25, team: 'Pipsqueak+4', points: 69 },
+      { rank: 26, team: 'Team Silk', points: 66 },
+      { rank: 27, team: 'Zero Tenacity', points: 59 },
+      { rank: 28, team: 'PlayTime', points: 55 },
+      { rank: 29, team: 'Amaru Gaming', points: 34 },
+      { rank: 30, team: 'Inner Circle', points: 34 }
+    ];
+
+    try {
+      let html = '<table class="rankings-table"><thead><tr><th style="width:3rem;">Rank</th><th>Team</th><th style="width:4rem;">Points</th></tr></thead><tbody>';
+      rankings.forEach(r => {
+        html += `<tr><td class="rank">#${r.rank}</td><td class="team-name">${r.team}</td><td class="points">${r.points.toLocaleString()}</td></tr>`;
+      });
+      html += '</tbody></table>';
+      body.innerHTML = html;
+    } catch (err) {
+      body.innerHTML = '<div class="empty-state">Unable to load rankings</div>';
+    }
+  }
+
   // Load news data (Aftonbladet)
   function loadNewsData() {
     const body = document.getElementById('news-body');
@@ -2637,7 +2751,7 @@
   });
 
   // Version badge
-  const VERSION = '1.0.19';
+  const VERSION = '1.0.20';
   const LAST_UPDATE = '2026-03-30';
   const versionBadge = document.createElement('div');
   versionBadge.className = 'version-badge';

@@ -838,30 +838,59 @@
     }
 
     /* Bracket */
+    .bracket-container {
+      display: flex;
+      gap: 1.2rem;
+      overflow-x: auto;
+      padding: 0.5rem 0;
+      align-items: flex-start;
+    }
+    .bracket-round {
+      display: flex;
+      flex-direction: column;
+      min-width: 140px;
+      flex-shrink: 0;
+    }
+    .bracket-round-header {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: var(--muted);
+      text-transform: uppercase;
+      padding: 0 0.5rem 0.4rem 0.5rem;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 0.4rem;
+      text-align: center;
+    }
+    .bracket-round-matches {
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      justify-content: space-around;
+    }
     .bracket-match {
-      margin: 0.3rem 0.4rem;
       border: 1px solid var(--border);
       border-radius: 4px;
       overflow: hidden;
+      min-width: 130px;
     }
     .bracket-team {
       display: flex;
       align-items: center;
       gap: 0.4rem;
-      padding: 0.3rem 0.5rem;
+      padding: 0.3rem 0.4rem;
       font-family: 'Rajdhani', sans-serif;
-      font-size: 0.82rem;
+      font-size: 0.78rem;
       border-bottom: 1px solid rgba(255,255,255,0.05);
     }
     .bracket-team:last-child { border-bottom: none; }
     .bracket-team img {
-      width: 14px; height: 14px;
+      width: 12px; height: 12px;
       object-fit: contain; flex-shrink: 0;
     }
-    .bracket-logo-placeholder { width: 14px; height: 14px; flex-shrink: 0; }
+    .bracket-logo-placeholder { width: 12px; height: 12px; flex-shrink: 0; }
     .bracket-team-name { flex: 1; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .bracket-winner .bracket-team-name { color: var(--text); font-weight: 700; }
-    .bracket-score { font-weight: 700; color: var(--muted); min-width: 1.2rem; text-align: right; }
+    .bracket-score { font-weight: 700; color: var(--muted); min-width: 1rem; text-align: right; font-size: 0.75rem; }
     .bracket-score-win { color: var(--live); }
 
     /* Group row status */
@@ -2088,14 +2117,21 @@
       }
 
       // Render selected bracket type
-      const rounds = data.bracket[activeBracketTab] || [];
+      let rounds = data.bracket[activeBracketTab] || [];
       if (!rounds.length) {
         activeBracketTab = bracketTabs[0] || 'upper';
-        const rounds = data.bracket[activeBracketTab] || [];
+        rounds = data.bracket[activeBracketTab] || [];
       }
 
+      // Build bracket grid showing rounds as columns
+      html += '<div class="bracket-container">';
       rounds.forEach(round => {
-        if (round.name) html += `<div class="standings-group-header">${round.name}</div>`;
+        html += '<div class="bracket-round">';
+        if (round.name) {
+          html += `<div class="bracket-round-header">${round.name}</div>`;
+        }
+        html += '<div class="bracket-round-matches">';
+
         round.matches.forEach(m => {
           const t1won = m.t1.won || (m.t1.score > m.t2.score);
           const t2won = m.t2.won || (m.t2.score > m.t1.score);
@@ -2112,7 +2148,10 @@
             </div>
           </div>`;
         });
+
+        html += '</div></div>';
       });
+      html += '</div>';
     } else if (activeStandingsTab === 'playoffs' && hasPlayoffs) {
       html += `<table class="standings-table">
         <thead><tr><th>#</th><th>Team</th><th>Prize</th></tr></thead><tbody>`;

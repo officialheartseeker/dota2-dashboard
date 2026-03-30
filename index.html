@@ -146,24 +146,20 @@
       grid-column: 1;
       grid-row: 2;
     }
-    body.all-view #standings-widget {
-      grid-column: 2;
-      grid-row: 2;
-    }
-    body.all-view #finance-widget {
-      grid-column: 2;
-      grid-row: 2;
-    }
-    body.all-view #news-widget {
+
+    /* Stack right-side widgets vertically in a flex container */
+    body.all-view .all-widgets-right {
+      display: flex !important;
+      flex-direction: column;
+      gap: 1.25rem;
       grid-column: 2;
       grid-row: 2;
     }
 
-    /* Stack right-side widgets vertically in a flex container */
-    body.all-view .all-widgets-right {
-      display: flex;
-      flex-direction: column;
-      gap: 1.25rem;
+    /* Ensure widgets inside flex container don't get grid positioning */
+    body.all-view .all-widgets-right > * {
+      grid-column: auto;
+      grid-row: auto;
     }
 
     /* ── RESIZE HANDLE (integrated in widget right edge) ── */
@@ -2641,7 +2637,7 @@
   });
 
   // Version badge
-  const VERSION = '1.0.18';
+  const VERSION = '1.0.19';
   const LAST_UPDATE = '2026-03-30';
   const versionBadge = document.createElement('div');
   versionBadge.className = 'version-badge';

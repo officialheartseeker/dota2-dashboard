@@ -1503,16 +1503,21 @@
 
       const isUpcoming = matchDate && diffFuture > 0;
 
-      // isCompleted: has a final score (not tied/close = not still playing)
+      // isCompleted: series is over — someone has 2+ wins (BO3/BO5), or BO1 done (1:0 / 0:1),
+      // or match is very old (3+ hrs). 0:0 is NEVER completed — game 1 is still in progress.
+      const maxScore = Math.max(s1Num, s2Num);
+      const totalGames = s1Num + s2Num;
+      const seriesOver = totalGames > 0 && (maxScore >= 2 || totalGames === 1);
       const isCompleted =
         hasScore &&
-        (Math.abs(s1Num - s2Num) > 1 || diffPast > 30 * 60 * 1000);
+        totalGames > 0 &&
+        (seriesOver || diffPast > 3 * 60 * 60 * 1000);
 
-      // isLive: match started recently, no final score yet, or currently streaming
+      // isLive: match started, not completed, within 6h window
       const isLive =
         matchDate &&
         diffPast >= 0 &&
-        diffPast < 4 * 60 * 60 * 1000 &&
+        diffPast < 6 * 60 * 60 * 1000 &&
         !isCompleted;
 
       if (matchDate && diffPast > 3 * 24 * 60 * 60 * 1000) return;
@@ -2809,7 +2814,7 @@
   switchDashboard('dota2');
 
   // Version badge
-  const VERSION = '1.0.30';
+  const VERSION = '1.0.31';
   const LAST_UPDATE = '2026-03-30';
   const versionBadge = document.createElement('div');
   versionBadge.className = 'version-badge';

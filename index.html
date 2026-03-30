@@ -191,6 +191,14 @@
       grid-row: auto !important;
     }
 
+    /* Explicit flex ordering: standings first, then rankings */
+    #standings-widget {
+      order: 1;
+    }
+    #rankings-widget {
+      order: 2;
+    }
+
     /* ── RESIZE HANDLE (integrated in widget right edge) ── */
     .widget {
       position: relative;
@@ -2769,7 +2777,7 @@
   switchDashboard('dota2');
 
   // Version badge
-  const VERSION = '1.0.24';
+  const VERSION = '1.0.25';
   const LAST_UPDATE = '2026-03-30';
   const versionBadge = document.createElement('div');
   versionBadge.className = 'version-badge';

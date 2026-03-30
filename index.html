@@ -162,6 +162,12 @@
       grid-row: auto;
     }
 
+    /* Ensure all-widgets-right children don't break flex layout in any view */
+    .all-widgets-right > * {
+      grid-column: auto !important;
+      grid-row: auto !important;
+    }
+
     /* ── RESIZE HANDLE (integrated in widget right edge) ── */
     .widget {
       position: relative;
@@ -2767,7 +2773,7 @@
   });
 
   // Version badge
-  const VERSION = '1.0.21';
+  const VERSION = '1.0.22';
   const LAST_UPDATE = '2026-03-30';
   const versionBadge = document.createElement('div');
   versionBadge.className = 'version-badge';

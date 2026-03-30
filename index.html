@@ -1905,7 +1905,11 @@
     let currentBracket = 'upper';
 
     const wrapper = tmp.querySelector('.brkts-bracket');
-    if (!wrapper) return brackets;
+    if (!wrapper) {
+      console.log('🔍 No .brkts-bracket found');
+      return brackets;
+    }
+    console.log('🔍 Bracket wrapper found, children:', wrapper.children.length);
 
     const parseEntry = (entry) => {
       const teamEl = entry.querySelector('.name.hidden-xs, .name');
@@ -1955,6 +1959,13 @@
     if (currentRound.matches.length) {
       brackets[currentBracket].push(currentRound);
     }
+
+    console.log('🔍 Bracket parse result:', {
+      upper: brackets.upper.length + ' rounds',
+      lower: brackets.lower.length + ' rounds',
+      grand: brackets.grand.length + ' rounds',
+      details: brackets
+    });
 
     return brackets;
   }
@@ -2259,7 +2270,7 @@
   updateRestoreBtn();
 
   // Version badge
-  const VERSION = '1.0.1';
+  const VERSION = '1.0.2';
   const LAST_UPDATE = '2026-03-30';
   const versionBadge = document.createElement('div');
   versionBadge.className = 'version-badge';

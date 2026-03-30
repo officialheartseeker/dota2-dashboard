@@ -1939,64 +1939,49 @@
       return { team, score, won, logo };
     };
 
-    // Real Liquipedia structure:
-    // wrapper children alternate: [brkts-round-header, brkts-round-body, brkts-round-header, brkts-round-body, ...]
-    // Each brkts-round-header contains N brkts-header-div (one per round column)
-    // Each brkts-round-body contains N brkts-round-center descendants (one per round column, in document order)
-    // header[i] pairs with round-center[i]
+    // Actual structure: headers contain all round names, bodies contain all round-centers
+    // Get ALL headers from all brkts-round-header elements
+    const headerDivs = [...wrapper.querySelectorAll('.brkts-header-div')];
+    const allRoundNames = headerDivs.map(div => {
+      const firstOpt = div.querySelector('.brkts-header-option');
+      return firstOpt?.textContent?.trim() || '';
+    }).filter(n => n);
 
-    const children = [...wrapper.children];
-    let i = 0;
+    // Get ALL round-centers (should be 1 per round name)
+    const roundCenters = [...wrapper.querySelectorAll('.brkts-round-center')];
 
-    while (i < children.length) {
-      const child = children[i];
+    // Match them by index
+    allRoundNames.forEach((name, idx) => {
+      const center = roundCenters[idx];
+      if (!center || !name) return;
 
-      if (child.classList.contains('brkts-round-header')) {
-        // Extract round names from each header-div (use first header-option = full name)
-        const headerDivs = [...child.querySelectorAll('.brkts-header-div')];
-        const roundNames = headerDivs.map(div => {
-          const firstOpt = div.querySelector('.brkts-header-option');
-          return firstOpt?.textContent?.trim() || div.firstChild?.textContent?.trim() || '';
+      // Determine bracket type
+      let bt = 'upper';
+      if (name.toLowerCase().includes('grand')) bt = 'grand';
+      else if (name.toLowerCase().includes('lower') || /^lb/i.test(name)) bt = 'lower';
+
+      // Get matches from this specific round-center
+      const matches = [];
+      const matches_in_center = center.querySelectorAll(':scope .brkts-match');
+      matches_in_center.forEach(matchEl => {
+        // Skip if inside a popup
+        if (matchEl.closest('.brkts-popup')) return;
+
+        // Find opponent entries directly under this match (not in popup)
+        const entries = [];
+        matchEl.querySelectorAll('.brkts-opponent-entry').forEach(e => {
+          if (!e.closest('.brkts-popup')) entries.push(e);
         });
 
-        // Paired body is next sibling
-        const body = children[i + 1];
-        if (body && body.classList.contains('brkts-round-body')) {
-          // All brkts-round-centers in document order correspond to rounds in header order
-          const roundCenters = [...body.querySelectorAll('.brkts-round-center')];
-
-          roundNames.forEach((name, idx) => {
-            const center = roundCenters[idx];
-            if (!center) return;
-
-            // Determine bracket type from round name
-            let bt = 'upper';
-            if (name.toLowerCase().includes('grand')) bt = 'grand';
-            else if (name.toLowerCase().includes('lower') || /^lb/i.test(name)) bt = 'lower';
-
-            // Collect matches from this center only (exclude popup content)
-            const matches = [];
-            center.querySelectorAll('.brkts-match').forEach(matchEl => {
-              if (matchEl.closest('.brkts-popup')) return;
-              const entries = matchEl.querySelectorAll(':scope > .brkts-opponent-entry, :scope > div > .brkts-opponent-entry');
-              const allEntries = matchEl.querySelectorAll('.brkts-opponent-entry');
-              const use = entries.length >= 2 ? entries : allEntries;
-              if (use.length >= 2) {
-                matches.push({ t1: parseEntry(use[0]), t2: parseEntry(use[1]) });
-              }
-            });
-
-            if (matches.length) brackets[bt].push({ name, matches });
-          });
-
-          i += 2;
-        } else {
-          i++;
+        if (entries.length >= 2) {
+          matches.push({ t1: parseEntry(entries[0]), t2: parseEntry(entries[1]) });
         }
-      } else {
-        i++;
+      });
+
+      if (matches.length) {
+        brackets[bt].push({ name, matches });
       }
-    }
+    });
 
     return brackets;
   }
@@ -2318,7 +2303,7 @@
   updateRestoreBtn();
 
   // Version badge
-  const VERSION = '1.0.5';
+  const VERSION = '1.0.6';
   const LAST_UPDATE = '2026-03-30';
   const versionBadge = document.createElement('div');
   versionBadge.className = 'version-badge';

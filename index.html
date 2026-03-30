@@ -1034,6 +1034,34 @@
     </div>
   </div>
 
+  <!-- WIDGET 3: Yahoo Finance TSLA -->
+  <div class="widget" id="finance-widget" draggable="true" style="display:none;">
+    <div class="widget-header">
+      <div class="drag-handle" title="Drag to reposition">⠿</div>
+      <div class="widget-title">
+        <div class="logo-icon" style="background:#110e0f;font-size:0.65rem;">$</div>
+        <div class="widget-label">Tesla · Stock</div>
+      </div>
+    </div>
+    <div class="widget-body" id="finance-body">
+      <div class="loading-state"><div class="loader"></div>Loading TSLA...</div>
+    </div>
+  </div>
+
+  <!-- WIDGET 4: Aftonbladet News -->
+  <div class="widget" id="news-widget" draggable="true" style="display:none;">
+    <div class="widget-header">
+      <div class="drag-handle" title="Drag to reposition">⠿</div>
+      <div class="widget-title">
+        <div class="logo-icon" style="background:#c41e3a;">AB</div>
+        <div class="widget-label">Aftonbladet · News</div>
+      </div>
+    </div>
+    <div class="widget-body" id="news-body">
+      <div class="loading-state"><div class="loader"></div>Loading news...</div>
+    </div>
+  </div>
+
   <!-- STREAM PANEL -->
   <div id="stream-panel" class="stream-panel hidden">
     <div class="stream-header">
@@ -2336,8 +2364,10 @@
   initViewerCounter();
   updateRestoreBtn();
 
-  // Dashboard view switching
+  // Dashboard view switching & widget visibility
   let currentView = 'dota2';
+  let visibleWidgets = new Set(JSON.parse(localStorage.getItem('visibleWidgets') || '["dota2-widget"]'));
+
   window.switchDashboard = function(view) {
     currentView = view;
     localStorage.setItem('dashboardView', view);
@@ -2347,18 +2377,109 @@
       btn.classList.toggle('active', btn.dataset.view === view);
     });
 
-    // Filter and render matches based on view
+    // Show/hide widgets based on view
+    const dota2Widget = document.querySelector('.matches-widget');
+    const standingsWidget = document.getElementById('standings-widget');
+    const financeWidget = document.getElementById('finance-widget');
+    const newsWidget = document.getElementById('news-widget');
+
     if (view === 'dota2') {
-      // Show only Dota 2 matches (current behavior)
+      dota2Widget.style.display = '';
+      standingsWidget.style.display = '';
+      financeWidget.style.display = 'none';
+      newsWidget.style.display = 'none';
       renderCurrent();
     } else if (view === 'all') {
-      // Show all games (placeholder - would need more game types)
+      dota2Widget.style.display = '';
+      standingsWidget.style.display = '';
+      financeWidget.style.display = '';
+      newsWidget.style.display = '';
       renderCurrent();
+      loadFinanceData();
+      loadNewsData();
     } else if (view === 'custom') {
-      // Custom filtered view (placeholder)
-      renderCurrent();
+      // Custom view - show based on saved preferences
+      dota2Widget.style.display = visibleWidgets.has('dota2-widget') ? '' : 'none';
+      standingsWidget.style.display = visibleWidgets.has('standings-widget') ? '' : 'none';
+      financeWidget.style.display = visibleWidgets.has('finance-widget') ? '' : 'none';
+      newsWidget.style.display = visibleWidgets.has('news-widget') ? '' : 'none';
+      if (visibleWidgets.has('finance-widget')) loadFinanceData();
+      if (visibleWidgets.has('news-widget')) loadNewsData();
     }
   };
+
+  // Load finance data (TSLA from Yahoo Finance)
+  function loadFinanceData() {
+    const body = document.getElementById('finance-body');
+    body.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading TSLA...</div>';
+
+    // Fetch from Yahoo Finance API via a CORS proxy
+    fetch('https://query1.finance.yahoo.com/v10/finance/quoteSummary/TSLA?modules=price,summaryDetail')
+      .then(r => r.json())
+      .then(data => {
+        const price = data?.quoteSummary?.result?.[0]?.price;
+        if (!price) throw new Error('No data');
+
+        const current = price.regularMarketPrice?.raw || 0;
+        const change = price.regularMarketChange?.raw || 0;
+        const changePercent = price.regularMarketChangePercent?.raw || 0;
+        const isUp = change >= 0;
+
+        body.innerHTML = `
+          <div style="padding: 1.5rem; text-align: center;">
+            <div style="font-size: 2rem; font-weight: 700; color: var(--text);">$${current.toFixed(2)}</div>
+            <div style="font-size: 1rem; color: ${isUp ? 'var(--live)' : '#c41e3a'}; margin-top: 0.5rem;">
+              ${isUp ? '↑' : '↓'} ${Math.abs(change).toFixed(2)} (${Math.abs(changePercent).toFixed(2)}%)
+            </div>
+            <div style="font-size: 0.75rem; color: var(--muted); margin-top: 1rem;">
+              Last updated: ${new Date().toLocaleTimeString()}
+            </div>
+          </div>
+        `;
+      })
+      .catch(err => {
+        body.innerHTML = '<div class="empty-state">Unable to load TSLA data</div>';
+      });
+  }
+
+  // Load news data (Aftonbladet)
+  function loadNewsData() {
+    const body = document.getElementById('news-body');
+    body.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading news...</div>';
+
+    // Fetch Aftonbladet RSS via CORS proxy
+    fetch('https://api.allorigins.win/get?url=' + encodeURIComponent('https://www.aftonbladet.se/rss.xml'))
+      .then(r => r.json())
+      .then(data => {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(data.contents, 'text/xml');
+        const items = xmlDoc.querySelectorAll('item');
+
+        if (items.length === 0) throw new Error('No items');
+
+        let html = '<div style="padding: 1rem;">';
+        [...items].slice(0, 5).forEach(item => {
+          const title = item.querySelector('title')?.textContent || '';
+          const link = item.querySelector('link')?.textContent || '';
+          const pubDate = item.querySelector('pubDate')?.textContent || '';
+          const date = new Date(pubDate).toLocaleDateString('sv-SE');
+
+          html += `
+            <div style="padding: 0.6rem 0; border-bottom: 1px solid var(--border);">
+              <a href="${link}" target="_blank" style="color: var(--accent2); text-decoration: none; font-weight: 600;">
+                ${title}
+              </a>
+              <div style="font-size: 0.7rem; color: var(--muted); margin-top: 0.2rem;">${date}</div>
+            </div>
+          `;
+        });
+        html += '</div>';
+        body.innerHTML = html;
+      })
+      .catch(err => {
+        body.innerHTML = '<div class="empty-state">Unable to load news</div>';
+      });
+  }
 
   // Restore saved view on load
   const savedView = localStorage.getItem('dashboardView') || 'dota2';
@@ -2367,7 +2488,7 @@
   }
 
   // Version badge
-  const VERSION = '1.0.10';
+  const VERSION = '1.0.11';
   const LAST_UPDATE = '2026-03-30';
   const versionBadge = document.createElement('div');
   versionBadge.className = 'version-badge';

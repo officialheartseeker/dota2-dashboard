@@ -191,7 +191,7 @@
       grid-row: auto !important;
     }
 
-    /* Explicit flex ordering: standings first, then rankings */
+    /* Explicit flex ordering: standings on top (order:1), rankings below (order:2) */
     #standings-widget {
       order: 1;
     }
@@ -1208,8 +1208,22 @@
     </div>
   </div>
 
-  <!-- WIDGET 2-4 Container for right-side widgets in All view -->
-  <div class="all-widgets-right" style="display:none;">
+  <!-- WIDGET 2-5 Container for right-side widgets -->
+  <div class="all-widgets-right">
+    <!-- WIDGET 5: World Rankings -->
+    <div class="widget" id="rankings-widget" draggable="true" style="display:none;">
+      <div class="widget-header">
+        <div class="drag-handle" title="Drag to reposition">⠿</div>
+        <div class="widget-title">
+          <div class="logo-icon" style="background:#6b5c9d;">WR</div>
+          <div class="widget-label">World Rankings</div>
+        </div>
+      </div>
+      <div class="widget-body" id="rankings-body">
+        <div class="loading-state"><div class="loader"></div>Loading rankings...</div>
+      </div>
+    </div>
+
     <!-- WIDGET 2: Tournament Standings -->
     <div class="standings-widget" id="standings-widget" draggable="true">
       <div class="widget-header" style="position:relative;">
@@ -1227,7 +1241,7 @@
       </div>
     </div>
 
-    <!-- WIDGET 3: Yahoo Finance TSLA -->
+    <!-- WIDGET 3: Yahoo Finance TSLA (hidden) -->
     <div class="widget" id="finance-widget" draggable="true" style="display:none;">
       <div class="widget-header">
         <div class="drag-handle" title="Drag to reposition">⠿</div>
@@ -1241,7 +1255,7 @@
       </div>
     </div>
 
-    <!-- WIDGET 4: Aftonbladet News -->
+    <!-- WIDGET 4: Aftonbladet News (hidden) -->
     <div class="widget" id="news-widget" draggable="true" style="display:none;">
       <div class="widget-header">
         <div class="drag-handle" title="Drag to reposition">⠿</div>
@@ -1252,20 +1266,6 @@
       </div>
       <div class="widget-body" id="news-body">
         <div class="loading-state"><div class="loader"></div>Loading news...</div>
-      </div>
-    </div>
-
-    <!-- WIDGET 5: World Rankings -->
-    <div class="widget" id="rankings-widget" draggable="true" style="display:none;">
-      <div class="widget-header">
-        <div class="drag-handle" title="Drag to reposition">⠿</div>
-        <div class="widget-title">
-          <div class="logo-icon" style="background:#6b5c9d;">WR</div>
-          <div class="widget-label">World Rankings</div>
-        </div>
-      </div>
-      <div class="widget-body" id="rankings-body">
-        <div class="loading-state"><div class="loader"></div>Loading rankings...</div>
       </div>
     </div>
   </div>
@@ -2777,7 +2777,7 @@
   switchDashboard('dota2');
 
   // Version badge
-  const VERSION = '1.0.25';
+  const VERSION = '1.0.26';
   const LAST_UPDATE = '2026-03-30';
   const versionBadge = document.createElement('div');
   versionBadge.className = 'version-badge';

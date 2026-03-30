@@ -1177,23 +1177,45 @@
         else if (total === 1) bestOf = 'BO1';
       }
 
-      // Extract stream links
+      // Extract stream links - only English streams
       let stream = null;
       const twitchEl = card.querySelector('a[href*="Special:Stream/twitch"]');
       const youtubeEl = card.querySelector('a[href*="Special:Stream/youtube"]');
+
+      // English stream channels to include
+      const englishChannels = new Set([
+        'esl_dota2', 'esl_dota2_den', 'esl_dota2_fra', 'esl_dota2_rus', 'esl_dota2_ptbr', 'esl_dota2_tur',
+        'dotamajor', 'dota2ti', 'epicenter_en', 'starladder_en', 'pgl_dota2', 'beyondthesummit',
+        'dotastarladder_en', 'dreamleague', 'perfectworld', 'ruhub', 'maincast', 'bsl_dota2',
+        'nodwin_gaming', 'aspeota2', 'btsindonesia', 'bts_dota2', 'bts_sa', 'bts_jp'
+      ]);
 
       if (twitchEl) {
         const tm = (twitchEl.getAttribute('href') || '').match(/Stream\/twitch\/([^"&?\/]+)/);
         if (tm) {
           const channelMap = {
-            'ESL_Dota_2': 'esl_dota2'
+            'ESL_Dota_2': 'esl_dota2',
+            'ESL_Dota2': 'esl_dota2',
+            'DotaMajor': 'dotamajor',
+            'The_International': 'dota2ti'
           };
           const raw = tm[1];
-          stream = 'https://twitch.tv/' + (channelMap[raw] || raw.toLowerCase());
+          const channel = (channelMap[raw] || raw.toLowerCase()).toLowerCase();
+
+          // Only include if it's an English channel or matches English patterns
+          if (englishChannels.has(channel) || /en|english|main|main_cast|broadcast|esl|pgl|epic|dreamleague/.test(channel)) {
+            stream = 'https://twitch.tv/' + channel;
+          }
         }
       } else if (youtubeEl) {
         const ym = (youtubeEl.getAttribute('href') || '').match(/Stream\/youtube\/([^"&?\/]+)/);
-        if (ym) stream = 'https://youtube.com/@' + ym[1] + '/live';
+        if (ym) {
+          const channel = ym[1].toLowerCase();
+          // YouTube: include if looks like English channel (avoid language-specific like _ru, _cn, _pt_br etc)
+          if (!/_(ru|cn|pt_br|br|tur|ara|hin|tha|jpn|ko|kr|th_|vn|th$)/i.test(channel)) {
+            stream = 'https://youtube.com/@' + ym[1] + '/live';
+          }
+        }
       }
 
       const now = new Date();
@@ -2296,7 +2318,7 @@
   updateRestoreBtn();
 
   // Version badge
-  const VERSION = '1.0.4';
+  const VERSION = '1.0.5';
   const LAST_UPDATE = '2026-03-30';
   const versionBadge = document.createElement('div');
   versionBadge.className = 'version-badge';

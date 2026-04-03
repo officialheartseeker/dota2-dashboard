@@ -963,58 +963,68 @@
       border-bottom-color: var(--accent);
     }
 
-    /* Bracket */
+    /* Bracket — horizontal, rounds as columns */
     .bracket-container {
       display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      padding: 0.5rem 0;
+      flex-direction: row;
+      gap: 0;
+      overflow-x: auto;
+      padding: 0 0 0.5rem;
+      align-items: stretch;
     }
     .bracket-round {
       display: flex;
       flex-direction: column;
-      border-left: 2px solid var(--accent2);
-      padding-left: 1rem;
+      min-width: 148px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--border);
     }
+    .bracket-round:last-child { border-right: none; }
     .bracket-round-header {
-      font-size: 0.75rem;
+      font-size: 0.68rem;
       font-weight: 700;
       color: var(--accent2);
+      padding: 0.3rem 0.5rem;
       text-transform: uppercase;
-      padding: 0 0 0.4rem 0;
-      margin-bottom: 0.6rem;
       letter-spacing: 0.05em;
+      border-bottom: 1px solid var(--border);
+      text-align: center;
+      white-space: nowrap;
     }
     .bracket-round-matches {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-      gap: 0.8rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-around;
+      flex: 1;
+      gap: 0.4rem;
+      padding: 0.4rem 0.4rem;
     }
     .bracket-match {
       border: 1px solid var(--border);
       border-radius: 4px;
       overflow: hidden;
-      min-width: 130px;
     }
     .bracket-team {
       display: flex;
       align-items: center;
-      gap: 0.4rem;
-      padding: 0.3rem 0.4rem;
+      gap: 0.35rem;
+      padding: 0.28rem 0.4rem;
       font-family: 'Rajdhani', sans-serif;
-      font-size: 0.78rem;
+      font-size: 0.76rem;
       border-bottom: 1px solid rgba(255,255,255,0.05);
     }
     .bracket-team:last-child { border-bottom: none; }
     .bracket-team img {
-      width: 12px; height: 12px;
+      width: 13px; height: 13px;
       object-fit: contain; flex-shrink: 0;
     }
-    .bracket-logo-placeholder { width: 12px; height: 12px; flex-shrink: 0; }
+    .bracket-logo-placeholder { width: 13px; height: 13px; flex-shrink: 0; }
     .bracket-team-name { flex: 1; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     .bracket-winner .bracket-team-name { color: var(--text); font-weight: 700; }
+    .bracket-winner { background: rgba(34,197,94,0.06); }
     .bracket-score { font-weight: 700; color: var(--muted); min-width: 1rem; text-align: right; font-size: 0.75rem; }
     .bracket-score-win { color: var(--live); }
+    .bracket-bo { font-size: 0.62rem; color: var(--muted); text-align: center; padding: 0.15rem; border-top: 1px solid rgba(255,255,255,0.04); background: rgba(255,255,255,0.02); }
 
     /* Group row status */
     .standings-table tr.row-qualified { background: rgba(34, 197, 94, 0.08); }
@@ -1600,10 +1610,13 @@
     const label = document.getElementById('stream-label');
 
     const channel = url.split('/').pop();
-    const host = location.hostname || 'officialheartseeker.github.io';
+    // Pass multiple parent= values to cover local file://, localhost, and GitHub Pages
+    const parents = new Set(['officialheartseeker.github.io', 'localhost', '127.0.0.1']);
+    if (location.hostname) parents.add(location.hostname);
+    const parentStr = [...parents].map(h => `parent=${h}`).join('&');
 
     label.textContent = matchLabel || ('Stream: ' + channel);
-    frame.src = `https://player.twitch.tv/?channel=${channel}&parent=${host}`;
+    frame.src = `https://player.twitch.tv/?channel=${channel}&${parentStr}`;
     panel.classList.remove('hidden');
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
@@ -2221,39 +2234,49 @@
 
     standingsBody.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading standings...</div>';
 
-    // Fetch main page, group stage page, play-in page, and playoffs page in parallel
-    const mainP = liquipediaXhr(tournPage).catch(() => null);
-    const groupP = liquipediaXhr(tournPage + '/Group_Stage').catch(() => null);
-    const playinP = liquipediaXhr(tournPage + '/Play-In').catch(() => null);
+    // Fetch all relevant subpages in parallel
+    const mainP     = liquipediaXhr(tournPage).catch(() => null);
+    const groupP    = liquipediaXhr(tournPage + '/Group_Stage').catch(() => null);
+    const playinP   = liquipediaXhr(tournPage + '/Play-In').catch(() => null);
+    const swissP    = liquipediaXhr(tournPage + '/Swiss_Stage').catch(() => null);
     const playoffsP = liquipediaXhr(tournPage + '/Playoffs').catch(() => null);
 
-    Promise.all([mainP, groupP, playinP, playoffsP]).then(([mainTmp, groupTmp, playinTmp, playoffsTmp]) => {
+    Promise.all([mainP, groupP, playinP, swissP, playoffsP]).then(([mainTmp, groupTmp, playinTmp, swissTmp, playoffsTmp]) => {
       const data = { groups: [], playoffs: [], bracket: [] };
 
-      // Merge groups from Group_Stage and Play-In subpages
-      if (groupTmp) data.groups = parseGroupStage(groupTmp);
-      if (playinTmp) {
-        const playinGroups = parseGroupStage(playinTmp);
-        if (playinGroups.length > data.groups.length) data.groups = playinGroups;
-        else if (playinGroups.length > 0) data.groups = [...data.groups, ...playinGroups];
-      }
+      // Collect groups from all group-stage sources, merge unique ones
+      const mergeGroups = (existing, incoming) => {
+        if (!incoming.length) return existing;
+        if (!existing.length) return incoming;
+        // Append groups not already present by name
+        const names = new Set(existing.map(g => g.name));
+        return [...existing, ...incoming.filter(g => !names.has(g.name))];
+      };
+
+      if (groupTmp)  data.groups = mergeGroups(data.groups, parseGroupStage(groupTmp));
+      if (playinTmp) data.groups = mergeGroups(data.groups, parseGroupStage(playinTmp));
+      if (swissTmp)  data.groups = mergeGroups(data.groups, parseGroupStage(swissTmp));
 
       if (mainTmp) {
         data.playoffs = parsePrizepool(mainTmp);
         if (!data.groups.length) data.groups = parseGroupStage(mainTmp);
-        // Try bracket from main page first
         data.bracket = parseBracket(mainTmp);
       }
 
-      // Dedicated playoffs page usually has the full bracket
+      // Playoffs subpage — prefer if it has more bracket rounds
       if (playoffsTmp) {
         const bracketFromPlayoffs = parseBracket(playoffsTmp);
-        const currentTotal = (data.bracket.upper?.length || 0) + (data.bracket.lower?.length || 0) + (data.bracket.grand?.length || 0);
-        const playoffsTotal = (bracketFromPlayoffs.upper?.length || 0) + (bracketFromPlayoffs.lower?.length || 0) + (bracketFromPlayoffs.grand?.length || 0);
-        if (playoffsTotal > currentTotal) {
-          data.bracket = bracketFromPlayoffs;
-        }
+        const cur = (data.bracket.upper?.length||0) + (data.bracket.lower?.length||0) + (data.bracket.grand?.length||0);
+        const pl  = (bracketFromPlayoffs.upper?.length||0) + (bracketFromPlayoffs.lower?.length||0) + (bracketFromPlayoffs.grand?.length||0);
+        if (pl > cur) data.bracket = bracketFromPlayoffs;
         if (!data.playoffs.length) data.playoffs = parsePrizepool(playoffsTmp);
+      }
+      // Swiss stage may also have a bracket
+      if (swissTmp) {
+        const swissBracket = parseBracket(swissTmp);
+        const cur = (data.bracket.upper?.length||0) + (data.bracket.lower?.length||0) + (data.bracket.grand?.length||0);
+        const sw  = (swissBracket.upper?.length||0) + (swissBracket.lower?.length||0) + (swissBracket.grand?.length||0);
+        if (sw > cur) data.bracket = swissBracket;
       }
 
       standingsCache[tournPage] = data;
@@ -2481,23 +2504,31 @@
 
     if (activeStandingsTab === 'groups' && hasGroups) {
       data.groups.forEach(g => {
+        // Detect if any team has mapScore data
+        const hasMaps = g.teams.some(t => t.mapScore && t.mapScore.trim() !== '');
         html += `<div class="standings-group-header">${g.name}</div>`;
         html += `<table class="standings-table">
-          <thead><tr><th>#</th><th>Team</th><th style="text-align:center">W-D-L</th><th style="text-align:center">Maps</th></tr></thead><tbody>`;
+          <thead><tr><th>#</th><th>Team</th><th style="text-align:center">W-L</th>${hasMaps ? '<th style="text-align:center">Maps</th>' : ''}</tr></thead><tbody>`;
         g.teams.forEach(t => {
           let statusClass = '';
-          if (t.status === 'up') statusClass = 'row-qualified';
-          else if (t.status === 'stayup') statusClass = 'row-tiebreak';
-          else if (t.status === 'down') statusClass = 'row-eliminated';
+          let statusTitle = '';
+          if (t.status === 'up')     { statusClass = 'row-qualified';  statusTitle = 'Advances'; }
+          else if (t.status === 'stayup') { statusClass = 'row-tiebreak'; statusTitle = 'Tiebreaker'; }
+          else if (t.status === 'down')   { statusClass = 'row-eliminated'; statusTitle = 'Eliminated'; }
+
+          const statusDot = statusTitle
+            ? `<span title="${statusTitle}" style="display:inline-block;width:6px;height:6px;border-radius:50%;margin-right:4px;flex-shrink:0;background:${t.status==='up'?'#22c55e':t.status==='stayup'?'#f59e0b':'#ef4444'};"></span>`
+            : '';
 
           html += `<tr class="${statusClass}">
             <td class="standings-place">${t.place}</td>
             <td class="standings-team">
+              ${statusDot}
               ${t.logo ? `<img src="${t.logo}" referrerpolicy="no-referrer" alt="">` : ''}
               ${t.team}
             </td>
-            <td style="text-align:center;font-weight:600;">${t.record}</td>
-            <td style="text-align:center;color:var(--muted);">${t.mapScore}</td>
+            <td style="text-align:center;font-weight:600;font-variant-numeric:tabular-nums;">${t.record || '-'}</td>
+            ${hasMaps ? `<td style="text-align:center;color:var(--muted);font-variant-numeric:tabular-nums;">${t.mapScore || '-'}</td>` : ''}
           </tr>`;
         });
         html += '</tbody></table>';
@@ -2525,68 +2556,62 @@
         rounds = data.bracket[activeBracketTab] || [];
       }
 
-      // Sort rounds logically: identify order from names or count
+      // Sort rounds logically
       const roundOrder = ['round 1', 'round 2', 'round 3', 'round 4', 'quarterfinal', 'semifinal', 'final'];
       rounds.sort((a, b) => {
-        const aLower = a.name.toLowerCase();
-        const bLower = b.name.toLowerCase();
-        const aIdx = roundOrder.findIndex(r => aLower.includes(r));
-        const bIdx = roundOrder.findIndex(r => bLower.includes(r));
+        const aIdx = roundOrder.findIndex(r => a.name.toLowerCase().includes(r));
+        const bIdx = roundOrder.findIndex(r => b.name.toLowerCase().includes(r));
         if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
         return 0;
       });
 
-      // Build bracket grid showing rounds as columns with better spacing
+      // Horizontal bracket — each round is a column
       html += '<div class="bracket-container">';
-      rounds.forEach((round, roundIdx) => {
-        html += '<div class="bracket-round">';
-        if (round.name) {
-          html += `<div class="bracket-round-header">${round.name}</div>`;
-        }
+      rounds.forEach(round => {
+        html += `<div class="bracket-round">`;
+        html += `<div class="bracket-round-header">${round.name || ''}</div>`;
         html += '<div class="bracket-round-matches">';
-
-        // Calculate spacing based on progression (fewer teams in later rounds = more space)
-        const totalMatches = rounds.reduce((sum, r) => sum + r.matches.length, 0);
-        const matchesInRound = round.matches.length;
-        const spacingFactor = Math.max(1, Math.ceil(totalMatches / matchesInRound));
-
-        round.matches.forEach((m, mIdx) => {
-          const t1won = m.t1.won || (m.t1.score > m.t2.score);
-          const t2won = m.t2.won || (m.t2.score > m.t1.score);
-          const marginTop = mIdx > 0 ? (spacingFactor * 0.3) + 'rem' : '0';
-          html += `<div class="bracket-match" style="margin-top: ${marginTop}">
+        round.matches.forEach(m => {
+          const t1won = m.t1.won || (m.t1.score !== '' && m.t1.score > m.t2.score);
+          const t2won = m.t2.won || (m.t2.score !== '' && m.t2.score > m.t1.score);
+          // Detect BO format from scores
+          const maxScore = Math.max(Number(m.t1.score) || 0, Number(m.t2.score) || 0);
+          const boLabel = maxScore >= 3 ? 'BO5' : maxScore >= 2 ? 'BO3' : '';
+          html += `<div class="bracket-match">
             <div class="bracket-team ${t1won ? 'bracket-winner' : ''}">
               ${m.t1.logo ? `<img src="${m.t1.logo}" referrerpolicy="no-referrer" alt="">` : '<span class="bracket-logo-placeholder"></span>'}
-              <span class="bracket-team-name">${m.t1.team}</span>
-              <span class="bracket-score ${t1won ? 'bracket-score-win' : ''}">${m.t1.score || '-'}</span>
+              <span class="bracket-team-name">${m.t1.team || 'TBD'}</span>
+              <span class="bracket-score ${t1won ? 'bracket-score-win' : ''}">${m.t1.score !== '' ? m.t1.score : '-'}</span>
             </div>
             <div class="bracket-team ${t2won ? 'bracket-winner' : ''}">
               ${m.t2.logo ? `<img src="${m.t2.logo}" referrerpolicy="no-referrer" alt="">` : '<span class="bracket-logo-placeholder"></span>'}
-              <span class="bracket-team-name">${m.t2.team}</span>
-              <span class="bracket-score ${t2won ? 'bracket-score-win' : ''}">${m.t2.score || '-'}</span>
+              <span class="bracket-team-name">${m.t2.team || 'TBD'}</span>
+              <span class="bracket-score ${t2won ? 'bracket-score-win' : ''}">${m.t2.score !== '' ? m.t2.score : '-'}</span>
             </div>
+            ${boLabel ? `<div class="bracket-bo">${boLabel}</div>` : ''}
           </div>`;
         });
-
         html += '</div></div>';
       });
       html += '</div>';
     } else if (activeStandingsTab === 'playoffs' && hasPlayoffs) {
+      const hasPrize = data.playoffs.some(s => s.prize);
       html += `<table class="standings-table">
-        <thead><tr><th>#</th><th>Team</th><th>Prize</th></tr></thead><tbody>`;
-      data.playoffs.forEach(s => {
+        <thead><tr><th>#</th><th>Team</th>${hasPrize ? '<th style="text-align:right">Prize</th>' : ''}</tr></thead><tbody>`;
+      data.playoffs.forEach((s, i) => {
+        const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 || (s.place||'').startsWith('3') ? '🥉' : '';
         let placeClass = '';
         if (s.place.startsWith('1')) placeClass = 'gold';
         else if (s.place.startsWith('2')) placeClass = 'silver';
         else if (s.place.startsWith('3')) placeClass = 'bronze';
 
         html += `<tr>
-          <td class="standings-place ${placeClass}">${s.place}</td>
+          <td class="standings-place ${placeClass}">${medal || s.place}</td>
           <td class="standings-team">
             ${s.logo ? `<img src="${s.logo}" referrerpolicy="no-referrer" alt="">` : ''}
-            ${s.team}
+            <span>${s.team}</span>
           </td>
-          <td class="standings-prize">${s.prize || '-'}</td>
+          ${hasPrize ? `<td class="standings-prize" style="text-align:right;font-variant-numeric:tabular-nums;">${s.prize || '-'}</td>` : ''}
         </tr>`;
       });
       html += '</tbody></table>';
@@ -2892,7 +2917,7 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.36';
+  const VERSION = '1.0.37';
   const LAST_UPDATE = '2026-04-03';
   const CHANGELOG = [
     { v: '1.0.33', date: '2026-04-03', notes: [

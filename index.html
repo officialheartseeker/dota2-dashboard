@@ -1531,7 +1531,10 @@
       if (seen.has(key)) return;
       seen.add(key);
 
-      matches.push({ t1, t2, s1, s2, dateISO, tourn, tournPage, stream, bestOf, logo1, logo2, isLive, isCompleted, isUpcoming });
+      // Fallback to gorgc if no official stream and match is live
+      const finalStream = stream || (isLive ? 'https://twitch.tv/gorgc' : null);
+
+      matches.push({ t1, t2, s1, s2, dateISO, tourn, tournPage, stream: finalStream, bestOf, logo1, logo2, isLive, isCompleted, isUpcoming });
     });
 
     return matches;
@@ -2892,7 +2895,7 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.34';
+  const VERSION = '1.0.35';
   const LAST_UPDATE = '2026-04-03';
   const CHANGELOG = [
     { v: '1.0.33', date: '2026-04-03', notes: [

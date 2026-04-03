@@ -1470,7 +1470,9 @@
       }
 
       // Extract stream links — scan ALL streams in the card
+      // Priority: Twitch (English) → Kick → YouTube → Twitch (gorgc fallback if listed)
       let stream = null;
+      let kickStream = null;
       let gorgcStream = null;
       const enOnly = localStorage.getItem('d2_english_only') !== 'false';
 
@@ -1485,31 +1487,43 @@
         'DotaMajor': 'dotamajor', 'The_International': 'dota2ti'
       };
 
+      // Twitch
       card.querySelectorAll('a[href*="Special:Stream/twitch"]').forEach(el => {
         const tm = (el.getAttribute('href') || '').match(/Stream\/twitch\/([^"&?\/]+)/);
         if (!tm) return;
         const raw = tm[1];
         const channel = (channelMap[raw] || raw.toLowerCase()).toLowerCase();
-        if (channel === 'gorgc') { gorgcStream = 'https://twitch.tv/gorgc'; return; }
+        if (channel === 'gorgc') { gorgcStream = 'twitch:gorgc'; return; }
         if (!stream && (!enOnly || englishChannels.has(channel) || /en|english|main|main_cast|broadcast|esl|pgl|epic|dreamleague/.test(channel))) {
-          stream = 'https://twitch.tv/' + channel;
+          stream = 'twitch:' + channel;
         }
       });
 
-      if (!stream) {
+      // Kick (listed as Special:Stream/kick on Liquipedia)
+      if (!kickStream) {
+        card.querySelectorAll('a[href*="Special:Stream/kick"]').forEach(el => {
+          if (kickStream) return;
+          const km = (el.getAttribute('href') || '').match(/Stream\/kick\/([^"&?\/]+)/);
+          if (km) kickStream = 'kick:' + km[1].toLowerCase();
+        });
+      }
+
+      // YouTube fallback
+      let ytStream = null;
+      if (!ytStream) {
         card.querySelectorAll('a[href*="Special:Stream/youtube"]').forEach(el => {
-          if (stream) return;
+          if (ytStream) return;
           const ym = (el.getAttribute('href') || '').match(/Stream\/youtube\/([^"&?\/]+)/);
           if (!ym) return;
           const channel = ym[1].toLowerCase();
           if (!enOnly || !/_(ru|cn|pt_br|br|tur|ara|hin|tha|jpn|ko|kr|th_|vn|th$)/i.test(channel)) {
-            stream = 'https://youtube.com/@' + ym[1] + '/live';
+            ytStream = 'yt:' + ym[1];
           }
         });
       }
 
-      // Use gorgc as fallback only if he's listed on the match card
-      if (!stream && gorgcStream) stream = gorgcStream;
+      // Pick best available: Twitch > Kick > YouTube > gorgc kick/twitch
+      stream = stream || kickStream || ytStream || gorgcStream || null;
 
       const now = new Date();
       const matchDate = dateISO ? new Date(dateISO) : null;
@@ -1603,20 +1617,32 @@
   }
 
   // ── Stream ──
-  function openStream(url, matchLabel, event, tournPage, tournName) {
+  function openStream(streamKey, matchLabel, event, tournPage, tournName) {
     if (event) event.stopPropagation();
     const panel = document.getElementById('stream-panel');
     const frame = document.getElementById('stream-frame');
     const label = document.getElementById('stream-label');
 
-    const channel = url.split('/').pop();
-    // Pass multiple parent= values to cover local file://, localhost, and GitHub Pages
-    const parents = new Set(['officialheartseeker.github.io', 'localhost', '127.0.0.1']);
-    if (location.hostname) parents.add(location.hostname);
-    const parentStr = [...parents].map(h => `parent=${h}`).join('&');
+    const [type, channel] = streamKey.includes(':') ? streamKey.split(':') : ['twitch', streamKey.split('/').pop()];
+
+    let src = '';
+    if (type === 'twitch') {
+      const parents = new Set(['officialheartseeker.github.io', 'localhost', '127.0.0.1']);
+      if (location.hostname) parents.add(location.hostname);
+      const parentStr = [...parents].map(h => `parent=${h}`).join('&');
+      src = `https://player.twitch.tv/?channel=${channel}&${parentStr}`;
+    } else if (type === 'kick') {
+      src = `https://player.kick.com/${channel}`;
+    } else if (type === 'yt') {
+      src = `https://www.youtube.com/@${channel}/live`;
+      // YouTube can't be embedded directly — open in new tab instead
+      window.open(src, '_blank');
+      if (tournPage) setActiveStandingsTournament(tournPage, tournName);
+      return;
+    }
 
     label.textContent = matchLabel || ('Stream: ' + channel);
-    frame.src = `https://player.twitch.tv/?channel=${channel}&${parentStr}`;
+    frame.src = src;
     panel.classList.remove('hidden');
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
@@ -2917,8 +2943,8 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.37';
-  const LAST_UPDATE = '2026-04-03';
+  const VERSION = '1.0.38';
+  const LAST_UPDATE = '2026-04-04';
   const CHANGELOG = [
     { v: '1.0.33', date: '2026-04-03', notes: [
       'Clicking a match or pressing Watch now auto-switches Standings to that tournament',

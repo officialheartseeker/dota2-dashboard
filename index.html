@@ -1204,11 +1204,15 @@
         </button>
       </div>
     </div>
-    <!-- Toolbar: tournament filter -->
+    <!-- Toolbar: tournament filter + stream language toggle -->
     <div class="toolbar">
       <select id="tourn-filter" onchange="applyFilter()">
         <option value="">All tournaments</option>
       </select>
+      <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.72rem;color:var(--muted);cursor:pointer;white-space:nowrap;">
+        <input type="checkbox" id="english-only-toggle" style="cursor:pointer;" onchange="setEnglishOnly(this.checked)">
+        EN only
+      </label>
     </div>
     <div class="widget-body" id="match-body">
       <div class="loading-state"><div class="loader"></div>Fetching matches...</div>
@@ -1455,10 +1459,11 @@
         else if (total === 1) bestOf = 'BO1';
       }
 
-      // Extract stream links - only English streams
+      // Extract stream links
       let stream = null;
       const twitchEl = card.querySelector('a[href*="Special:Stream/twitch"]');
       const youtubeEl = card.querySelector('a[href*="Special:Stream/youtube"]');
+      const enOnly = localStorage.getItem('d2_english_only') !== 'false';
 
       // English stream channels to include
       const englishChannels = new Set([
@@ -1480,8 +1485,8 @@
           const raw = tm[1];
           const channel = (channelMap[raw] || raw.toLowerCase()).toLowerCase();
 
-          // Only include if it's an English channel or matches English patterns
-          if (englishChannels.has(channel) || /en|english|main|main_cast|broadcast|esl|pgl|epic|dreamleague/.test(channel)) {
+          // Filter by language preference
+          if (!enOnly || englishChannels.has(channel) || /en|english|main|main_cast|broadcast|esl|pgl|epic|dreamleague/.test(channel)) {
             stream = 'https://twitch.tv/' + channel;
           }
         }
@@ -1489,8 +1494,8 @@
         const ym = (youtubeEl.getAttribute('href') || '').match(/Stream\/youtube\/([^"&?\/]+)/);
         if (ym) {
           const channel = ym[1].toLowerCase();
-          // YouTube: include if looks like English channel (avoid language-specific like _ru, _cn, _pt_br etc)
-          if (!/_(ru|cn|pt_br|br|tur|ara|hin|tha|jpn|ko|kr|th_|vn|th$)/i.test(channel)) {
+          // YouTube: include based on language preference
+          if (!enOnly || !/_(ru|cn|pt_br|br|tur|ara|hin|tha|jpn|ko|kr|th_|vn|th$)/i.test(channel)) {
             stream = 'https://youtube.com/@' + ym[1] + '/live';
           }
         }
@@ -1588,7 +1593,7 @@
   }
 
   // ── Stream ──
-  function openStream(url, matchLabel, event) {
+  function openStream(url, matchLabel, event, tournPage, tournName) {
     if (event) event.stopPropagation();
     const panel = document.getElementById('stream-panel');
     const frame = document.getElementById('stream-frame');
@@ -1601,6 +1606,26 @@
     frame.src = `https://player.twitch.tv/?channel=${channel}&parent=${host}`;
     panel.classList.remove('hidden');
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    if (tournPage) setActiveStandingsTournament(tournPage, tournName);
+  }
+
+  function setActiveStandingsTournament(tournPage, tournName) {
+    if (!tournPage || !standingsSelect) return;
+    // Ensure the option exists in the dropdown
+    let opt = [...standingsSelect.options].find(o => o.value === tournPage);
+    if (!opt) {
+      opt = document.createElement('option');
+      opt.value = tournPage;
+      opt.text = tournName || tournPage;
+      standingsSelect.appendChild(opt);
+    }
+    if (standingsSelect.value === tournPage) return; // already active
+    standingsSelect.value = tournPage;
+    fetchStandings(tournPage, tournName || opt.text);
+    // Scroll standings widget into view
+    const sw = document.getElementById('standings-widget');
+    if (sw) sw.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   function toggleFullscreen() {
@@ -1634,6 +1659,9 @@
     // Close any other open roster
     document.querySelectorAll('.roster-detail').forEach(el => el.remove());
     openMatchId = id;
+
+    // Sync standings to this match's tournament
+    if (m.tournPage) setActiveStandingsTournament(m.tournPage, m.tourn);
 
     // Find the match row and insert roster below it
     const row = document.querySelector('[data-match-id="' + CSS.escape(id) + '"]');
@@ -1829,12 +1857,12 @@
       (!soon && timeStr ? `<span class="time-tag">${timeStr}</span>` : '') +
       (m.bestOf ? `<span class="bo-tag">${m.bestOf}</span>` : '') +
       (m.tourn ? (m.tournPage ? `<a class="tourn-tag" href="https://liquipedia.net/dota2/${m.tournPage}" target="_blank" onclick="event.stopPropagation()" title="${m.tourn}">${m.tourn}</a>` : `<span class="tourn-tag">${m.tourn}</span>`) : '') +
-      (m.stream && m.isLive ? `<button class="stream-btn" onclick="openStream('${m.stream}', '${m.t1.replace(/'/g, "\\'")} vs ${m.t2.replace(/'/g, "\\'")}', event)">&#9654; Watch</button>` : '');
+      (m.stream && m.isLive ? `<button class="stream-btn" onclick="openStream('${m.stream}', '${m.t1.replace(/'/g, "\\'")} vs ${m.t2.replace(/'/g, "\\'")}', event, '${(m.tournPage||'').replace(/'/g,"\\'")}', '${(m.tourn||'').replace(/'/g,"\\'")}')">&#9654; Watch</button>` : '');
 
     const rowClass = m.isLive ? 'is-live' : m.isCompleted ? 'is-completed' : 'is-upcoming';
     const favClass = hasFav ? ' is-fav' : '';
 
-    const safeM = encodeURIComponent(JSON.stringify({ t1: m.t1, t2: m.t2, tourn: m.tourn, dateISO: m.dateISO, logo1: m.logo1, logo2: m.logo2 }));
+    const safeM = encodeURIComponent(JSON.stringify({ t1: m.t1, t2: m.t2, tourn: m.tourn, tournPage: m.tournPage, dateISO: m.dateISO, logo1: m.logo1, logo2: m.logo2 }));
 
     return `
     <div class="match-row ${rowClass}${favClass}" data-match-id="${id}" onclick="openDetail(JSON.parse(decodeURIComponent('${safeM}')), event)">
@@ -2193,15 +2221,22 @@
 
     standingsBody.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading standings...</div>';
 
-    // Fetch main page, group stage page, and playoffs page in parallel
+    // Fetch main page, group stage page, play-in page, and playoffs page in parallel
     const mainP = liquipediaXhr(tournPage).catch(() => null);
     const groupP = liquipediaXhr(tournPage + '/Group_Stage').catch(() => null);
+    const playinP = liquipediaXhr(tournPage + '/Play-In').catch(() => null);
     const playoffsP = liquipediaXhr(tournPage + '/Playoffs').catch(() => null);
 
-    Promise.all([mainP, groupP, playoffsP]).then(([mainTmp, groupTmp, playoffsTmp]) => {
+    Promise.all([mainP, groupP, playinP, playoffsP]).then(([mainTmp, groupTmp, playinTmp, playoffsTmp]) => {
       const data = { groups: [], playoffs: [], bracket: [] };
 
+      // Merge groups from Group_Stage and Play-In subpages
       if (groupTmp) data.groups = parseGroupStage(groupTmp);
+      if (playinTmp) {
+        const playinGroups = parseGroupStage(playinTmp);
+        if (playinGroups.length > data.groups.length) data.groups = playinGroups;
+        else if (playinGroups.length > 0) data.groups = [...data.groups, ...playinGroups];
+      }
 
       if (mainTmp) {
         data.playoffs = parsePrizepool(mainTmp);
@@ -2341,17 +2376,24 @@
           const logo = src.startsWith('http') ? src : (src.startsWith('//') ? 'https:' + src : (src ? 'https://liquipedia.net' + src : ''));
 
           // Record & map score from last cells
-          const lastCells = [...cells].slice(-2);
-          const record = lastCells[0]?.textContent?.trim() || '';
-          const mapScore = lastCells[1]?.textContent?.trim() || '';
+          // Some tables: last 2 cells = W-L record + Maps; others: only 1 record cell "W-L"
+          const allCells = [...cells];
+          const secondLast = allCells[allCells.length - 2]?.textContent?.trim() || '';
+          const last = allCells[allCells.length - 1]?.textContent?.trim() || '';
+          // If second-to-last looks like a W-D-L or W-L record (digits with dashes), treat as record + maps
+          const looksLikeRecord = /^\d+[\-–]\d/.test(secondLast);
+          const record = looksLikeRecord ? secondLast : last;
+          const mapScore = looksLikeRecord ? last : '';
 
-          // Qualification status from row class
+          // Qualification status: check row class first, then first <td> class (some pages only mark the cell)
           const rowClass = row.className || '';
+          const tdClass = cells[0]?.className || '';
+          const combinedClass = rowClass + ' ' + tdClass;
           let status = '';
-          if (rowClass.includes('bg-up')) status = 'up';
-          else if (rowClass.includes('bg-stayup')) status = 'stayup';
-          else if (rowClass.includes('bg-stay')) status = 'stay';
-          else if (rowClass.includes('bg-down')) status = 'down';
+          if (combinedClass.includes('bg-up')) status = 'up';
+          else if (combinedClass.includes('bg-stayup')) status = 'stayup';
+          else if (combinedClass.includes('bg-stay')) status = 'stay';
+          else if (combinedClass.includes('bg-down')) status = 'down';
 
           if (team) teams.push({ place, team, logo, record, mapScore, status });
         });
@@ -2603,6 +2645,17 @@
     else standingsBody.innerHTML = '<div class="empty-state">Select a tournament to view standings</div>';
   });
 
+  // ── Stream language toggle ──
+  window.setEnglishOnly = function(checked) {
+    localStorage.setItem('d2_english_only', checked ? 'true' : 'false');
+    loadMatches(); // re-parse with new filter
+  };
+  // Init checkbox state
+  (function() {
+    const tog = document.getElementById('english-only-toggle');
+    if (tog) tog.checked = localStorage.getItem('d2_english_only') !== 'false';
+  })();
+
   // ── Init ──
   loadMatches();
   setInterval(loadMatches, 120000); // Auto-refresh every 2 min
@@ -2719,62 +2772,87 @@
     loadRankingsData();
   }
 
+  let rankingsCache = null;
+
+  function renderRankings(rankings) {
+    const body = document.getElementById('rankings-body');
+    const displayed = rankingsExpanded ? rankings : rankings.slice(0, 10);
+    let html = '<table class="rankings-table"><thead><tr><th style="width:3rem;">Rank</th><th>Team</th><th style="width:4rem;">Points</th></tr></thead><tbody>';
+    displayed.forEach(r => {
+      html += `<tr><td class="rank">#${r.rank}</td><td class="team-name">${r.team}</td><td class="points">${typeof r.points === 'number' ? r.points.toLocaleString() : r.points}</td></tr>`;
+    });
+    html += '</tbody></table>';
+    if (!rankingsExpanded) {
+      html += `<button onclick="toggleRankingsExpand()" style="width:100%;padding:0.5rem;margin-top:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;transition:all 0.2s;">▼ Show all ${rankings.length} teams</button>`;
+    } else {
+      html += '<button onclick="toggleRankingsExpand()" style="width:100%;padding:0.5rem;margin-top:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;transition:all 0.2s;">▲ Collapse to top 10</button>';
+    }
+    body.innerHTML = html;
+  }
+
   function loadRankingsData() {
     const body = document.getElementById('rankings-body');
 
-    // Top 30 Dota 2 teams (DLTV rankings as of March 30, 2026)
-    const rankings = [
-      { rank: 1, team: 'Tundra Esports', points: 1861 },
-      { rank: 2, team: 'Team Yandex', points: 1575 },
-      { rank: 3, team: 'Team Liquid', points: 1219 },
-      { rank: 4, team: 'Team Falcons', points: 1033 },
-      { rank: 5, team: 'Team Spirit', points: 898 },
-      { rank: 6, team: 'Aurora', points: 754 },
-      { rank: 7, team: 'BetBoom Team', points: 751 },
-      { rank: 8, team: 'Xtreme Gaming', points: 703 },
-      { rank: 9, team: 'MOUZ', points: 671 },
-      { rank: 10, team: 'PARIVISION', points: 600 },
-      { rank: 11, team: 'Natus Vincere', points: 538 },
-      { rank: 12, team: 'Heroic', points: 478 },
-      { rank: 13, team: 'OG', points: 349 },
-      { rank: 14, team: 'GamerLegion', points: 298 },
-      { rank: 15, team: 'Vici Gaming', points: 284 },
-      { rank: 16, team: 'Rekonix', points: 232 },
-      { rank: 17, team: 'Power Rangers', points: 227 },
-      { rank: 18, team: 'paiN Gaming', points: 223 },
-      { rank: 19, team: 'Execration', points: 186 },
-      { rank: 20, team: 'Nigma Galaxy', points: 185 },
-      { rank: 21, team: 'Virtus.pro', points: 174 },
-      { rank: 22, team: 'Team Nemesis', points: 144 },
-      { rank: 23, team: '1win Team', points: 120 },
-      { rank: 24, team: 'Yakult Brothers', points: 119 },
-      { rank: 25, team: 'Pipsqueak+4', points: 69 },
-      { rank: 26, team: 'Team Silk', points: 66 },
-      { rank: 27, team: 'Zero Tenacity', points: 59 },
-      { rank: 28, team: 'PlayTime', points: 55 },
-      { rank: 29, team: 'Amaru Gaming', points: 34 },
-      { rank: 30, team: 'Inner Circle', points: 34 }
-    ];
+    if (rankingsCache) { renderRankings(rankingsCache); return; }
 
-    try {
-      const displayedRankings = rankingsExpanded ? rankings : rankings.slice(0, 10);
-      let html = '<table class="rankings-table"><thead><tr><th style="width:3rem;">Rank</th><th>Team</th><th style="width:4rem;">Points</th></tr></thead><tbody>';
-      displayedRankings.forEach(r => {
-        html += `<tr><td class="rank">#${r.rank}</td><td class="team-name">${r.team}</td><td class="points">${r.points.toLocaleString()}</td></tr>`;
+    body.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading rankings...</div>';
+
+    // Fetch live from gosugamers via CORS proxy, parse __NEXT_DATA__
+    fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://www.gosugamers.net/dota2/rankings'))
+      .then(r => r.text())
+      .then(html => {
+        const m = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
+        if (!m) throw new Error('no __NEXT_DATA__');
+        const json = JSON.parse(m[1]);
+        // Navigate to rankings array — structure: pageProps.rankings or similar
+        const props = json?.props?.pageProps;
+        const raw = props?.rankings || props?.data?.rankings || props?.rankingEntries || [];
+        if (!Array.isArray(raw) || raw.length === 0) throw new Error('empty rankings');
+        const rankings = raw.map((r, i) => ({
+          rank: r.rank ?? r.position ?? (i + 1),
+          team: r.team?.name || r.teamName || r.name || '—',
+          points: r.points ?? r.score ?? r.rating ?? '—'
+        }));
+        rankingsCache = rankings;
+        renderRankings(rankings);
+      })
+      .catch(() => {
+        // Fallback to static snapshot (March 2026)
+        const fallback = [
+          { rank: 1, team: 'Tundra Esports', points: 1861 },
+          { rank: 2, team: 'Team Yandex', points: 1575 },
+          { rank: 3, team: 'Team Liquid', points: 1219 },
+          { rank: 4, team: 'Team Falcons', points: 1033 },
+          { rank: 5, team: 'Team Spirit', points: 898 },
+          { rank: 6, team: 'Aurora', points: 754 },
+          { rank: 7, team: 'BetBoom Team', points: 751 },
+          { rank: 8, team: 'Xtreme Gaming', points: 703 },
+          { rank: 9, team: 'MOUZ', points: 671 },
+          { rank: 10, team: 'PARIVISION', points: 600 },
+          { rank: 11, team: 'Natus Vincere', points: 538 },
+          { rank: 12, team: 'Heroic', points: 478 },
+          { rank: 13, team: 'OG', points: 349 },
+          { rank: 14, team: 'GamerLegion', points: 298 },
+          { rank: 15, team: 'Vici Gaming', points: 284 },
+          { rank: 16, team: 'Rekonix', points: 232 },
+          { rank: 17, team: 'Power Rangers', points: 227 },
+          { rank: 18, team: 'paiN Gaming', points: 223 },
+          { rank: 19, team: 'Execration', points: 186 },
+          { rank: 20, team: 'Nigma Galaxy', points: 185 },
+          { rank: 21, team: 'Virtus.pro', points: 174 },
+          { rank: 22, team: 'Team Nemesis', points: 144 },
+          { rank: 23, team: '1win Team', points: 120 },
+          { rank: 24, team: 'Yakult Brothers', points: 119 },
+          { rank: 25, team: 'Pipsqueak+4', points: 69 },
+          { rank: 26, team: 'Team Silk', points: 66 },
+          { rank: 27, team: 'Zero Tenacity', points: 59 },
+          { rank: 28, team: 'PlayTime', points: 55 },
+          { rank: 29, team: 'Amaru Gaming', points: 34 },
+          { rank: 30, team: 'Inner Circle', points: 34 }
+        ];
+        rankingsCache = fallback;
+        renderRankings(fallback);
       });
-      html += '</tbody></table>';
-
-      // Add expand/collapse button
-      if (!rankingsExpanded) {
-        html += '<button onclick="toggleRankingsExpand()" style="width:100%;padding:0.5rem;margin-top:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;transition:all 0.2s;">▼ Expand to see all 30 teams</button>';
-      } else {
-        html += '<button onclick="toggleRankingsExpand()" style="width:100%;padding:0.5rem;margin-top:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;transition:all 0.2s;">▲ Collapse to top 10</button>';
-      }
-
-      body.innerHTML = html;
-    } catch (err) {
-      body.innerHTML = '<div class="empty-state">Unable to load rankings</div>';
-    }
   }
 
   // Load news data (Aftonbladet)
@@ -2813,13 +2891,61 @@
   // Initialize Dota 2 view on page load
   switchDashboard('dota2');
 
-  // Version badge
-  const VERSION = '1.0.31';
-  const LAST_UPDATE = '2026-03-30';
+  // Version badge + changelog
+  const VERSION = '1.0.34';
+  const LAST_UPDATE = '2026-04-03';
+  const CHANGELOG = [
+    { v: '1.0.33', date: '2026-04-03', notes: [
+      'Clicking a match or pressing Watch now auto-switches Standings to that tournament',
+      'Added EN only toggle to show/hide non-English Twitch & YouTube streams',
+      'World Rankings now fetched live from gosugamers (with static fallback)',
+      'Version badge now shows this changelog on click'
+    ]},
+    { v: '1.0.32', date: '2026-04-03', notes: [
+      'Standings parser now also fetches /Play-In subpage',
+      'Status colors (up/down) fixed for rows where only <td> has the class',
+      'Record column auto-detects W-L vs W-D-L-Maps format'
+    ]},
+    { v: '1.0.31', date: '2026-03-30', notes: [
+      'Fixed live matches being incorrectly moved to Completed section',
+      'Series completion now uses score logic (BO1/BO3/BO5) instead of time-only threshold'
+    ]},
+    { v: '1.0.30', date: '2026-03-29', notes: [
+      'Added resizable right panel (drag handle)',
+      'World Rankings widget added (top 30, expand/collapse)',
+      'Widget logos left-aligned in all headers'
+    ]}
+  ];
+
+  // Changelog modal
+  const clModal = document.createElement('div');
+  clModal.id = 'changelog-modal';
+  clModal.style.cssText = 'display:none;position:fixed;inset:0;z-index:9999;background:rgba(0,0,0,0.6);align-items:center;justify-content:center;';
+  clModal.innerHTML = `
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1.5rem;max-width:480px;width:90%;max-height:80vh;overflow-y:auto;box-shadow:0 8px 32px rgba(0,0,0,0.5);">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1rem;">
+        <span style="font-weight:700;font-size:1rem;color:var(--text);">Changelog</span>
+        <button onclick="document.getElementById('changelog-modal').style.display='none'" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.2rem;line-height:1;">✕</button>
+      </div>
+      ${CHANGELOG.map(c => `
+        <div style="margin-bottom:1rem;">
+          <div style="font-size:0.78rem;font-weight:700;color:var(--accent2);margin-bottom:0.35rem;">v${c.v} <span style="color:var(--muted);font-weight:400;">· ${c.date}</span></div>
+          <ul style="margin:0;padding-left:1.2rem;color:var(--text);font-size:0.75rem;line-height:1.6;">
+            ${c.notes.map(n => `<li>${n}</li>`).join('')}
+          </ul>
+        </div>
+      `).join('<hr style="border:none;border-top:1px solid var(--border);margin:0.75rem 0;">')}
+    </div>
+  `;
+  clModal.addEventListener('click', e => { if (e.target === clModal) clModal.style.display = 'none'; });
+  document.body.appendChild(clModal);
+
   const versionBadge = document.createElement('div');
   versionBadge.className = 'version-badge';
   versionBadge.innerHTML = `V${VERSION} · ${LAST_UPDATE}`;
-  versionBadge.title = `Last updated: ${LAST_UPDATE}`;
+  versionBadge.title = 'Click to see changelog';
+  versionBadge.style.cursor = 'pointer';
+  versionBadge.addEventListener('click', () => { clModal.style.display = 'flex'; });
   document.body.appendChild(versionBadge);
 </script>
 </div>

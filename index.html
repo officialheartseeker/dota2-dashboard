@@ -1304,7 +1304,7 @@
         <button onclick="closeStream()">&#x2715; Close</button>
       </div>
     </div>
-    <iframe id="stream-frame" src="" allowfullscreen></iframe>
+    <iframe id="stream-frame" src="" allowfullscreen allow="autoplay; fullscreen; picture-in-picture; encrypted-media"></iframe>
   </div>
 
 <script>
@@ -1508,22 +1508,8 @@
         });
       }
 
-      // YouTube fallback
-      let ytStream = null;
-      if (!ytStream) {
-        card.querySelectorAll('a[href*="Special:Stream/youtube"]').forEach(el => {
-          if (ytStream) return;
-          const ym = (el.getAttribute('href') || '').match(/Stream\/youtube\/([^"&?\/]+)/);
-          if (!ym) return;
-          const channel = ym[1].toLowerCase();
-          if (!enOnly || !/_(ru|cn|pt_br|br|tur|ara|hin|tha|jpn|ko|kr|th_|vn|th$)/i.test(channel)) {
-            ytStream = 'yt:' + ym[1];
-          }
-        });
-      }
-
-      // Pick best available: Twitch > Kick > YouTube > gorgc kick/twitch
-      stream = stream || kickStream || ytStream || gorgcStream || null;
+      // Pick best available: Twitch > Kick > gorgc fallback (no YouTube)
+      stream = stream || kickStream || gorgcStream || null;
 
       const now = new Date();
       const matchDate = dateISO ? new Date(dateISO) : null;
@@ -1632,15 +1618,9 @@
       const parentStr = [...parents].map(h => `parent=${h}`).join('&');
       src = `https://player.twitch.tv/?channel=${channel}&${parentStr}`;
     } else if (type === 'kick') {
-      // Kick embeds are unreliable — open in new tab
-      window.open(`https://kick.com/${channel}`, '_blank');
-      if (tournPage) setActiveStandingsTournament(tournPage, tournName);
-      return;
-    } else if (type === 'yt') {
-      // YouTube can't be embedded — open in new tab
-      window.open(`https://www.youtube.com/@${channel}/live`, '_blank');
-      if (tournPage) setActiveStandingsTournament(tournPage, tournName);
-      return;
+      src = `https://player.kick.com/${channel}?autoplay=true`;
+    } else {
+      return; // unsupported type
     }
 
     label.textContent = matchLabel || ('Stream: ' + channel);
@@ -2961,7 +2941,7 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.40';
+  const VERSION = '1.0.41';
   const LAST_UPDATE = '2026-04-04';
   const CHANGELOG = [
     { v: '1.0.33', date: '2026-04-03', notes: [

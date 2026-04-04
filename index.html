@@ -2828,9 +2828,14 @@
   function renderRankings(rankings) {
     const body = document.getElementById('rankings-body');
     const displayed = rankingsExpanded ? rankings : rankings.slice(0, 10);
-    let html = '<table class="rankings-table"><thead><tr><th style="width:3rem;">Rank</th><th>Team</th><th style="width:4rem;">Points</th></tr></thead><tbody>';
+    let html = '<table class="rankings-table"><thead><tr><th style="width:2.5rem;">Rank</th><th>Team</th><th style="width:4rem;">Points</th></tr></thead><tbody>';
     displayed.forEach(r => {
-      html += `<tr><td class="rank">#${r.rank}</td><td class="team-name">${r.team}</td><td class="points">${typeof r.points === 'number' ? r.points.toLocaleString() : r.points}</td></tr>`;
+      const logoHtml = r.logo ? `<img src="${r.logo}" referrerpolicy="no-referrer" style="width:16px;height:16px;object-fit:contain;margin-right:0.4rem;vertical-align:middle;flex-shrink:0;">` : '';
+      html += `<tr>
+        <td class="rank" style="text-align:center;">#${r.rank}</td>
+        <td class="team-name" style="display:flex;align-items:center;">${logoHtml}${r.team}</td>
+        <td class="points">${typeof r.points === 'number' ? r.points.toLocaleString() : r.points}</td>
+      </tr>`;
     });
     html += '</tbody></table>';
     if (!rankingsExpanded) {
@@ -2848,58 +2853,69 @@
 
     body.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading rankings...</div>';
 
-    // Fetch live from gosugamers via CORS proxy, parse __NEXT_DATA__
-    fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://www.gosugamers.net/dota2/rankings'))
-      .then(r => r.text())
+    // Fetch live from DLTV (no auth required, data in HTML)
+    fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://dltv.org/ranking'))
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
       .then(html => {
-        const m = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/);
-        if (!m) throw new Error('no __NEXT_DATA__');
-        const json = JSON.parse(m[1]);
-        // Navigate to rankings array — structure: pageProps.rankings or similar
-        const props = json?.props?.pageProps;
-        const raw = props?.rankings || props?.data?.rankings || props?.rankingEntries || [];
-        if (!Array.isArray(raw) || raw.length === 0) throw new Error('empty rankings');
-        const rankings = raw.map((r, i) => ({
-          rank: r.rank ?? r.position ?? (i + 1),
-          team: r.team?.name || r.teamName || r.name || '—',
-          points: r.points ?? r.score ?? r.rating ?? '—'
-        }));
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        const rankings = [];
+        tmp.querySelectorAll('.ranking__list-case__item').forEach(item => {
+          const rankEl = item.querySelector('.item__info-num');
+          const nameEl = item.querySelector('.item__info-team__name .name');
+          const pointsEl = item.querySelector('.item__info-team__name .points');
+          const logoEl = item.querySelector('.item__info-logo');
+
+          const rankStr = rankEl?.textContent?.trim().replace('#', '') || '';
+          const rank = parseInt(rankStr, 10);
+          const team = nameEl?.textContent?.trim() || '';
+          const ptText = pointsEl?.textContent?.trim().replace(/[()]/g, '') || '';
+          const points = parseInt(ptText.replace(/[^0-9]/g, ''), 10) || 0;
+
+          // Logo: prefer dark theme src
+          const logo = logoEl?.getAttribute('data-theme-dark') || logoEl?.getAttribute('data-theme-light') || '';
+
+          if (rank && team) rankings.push({ rank, team, points, logo });
+        });
+
+        if (!rankings.length) throw new Error('No rankings parsed');
+        rankings.sort((a, b) => a.rank - b.rank);
         rankingsCache = rankings;
         renderRankings(rankings);
       })
       .catch(() => {
-        // Fallback to static snapshot (March 2026)
+        // Static fallback (April 2026)
         const fallback = [
-          { rank: 1, team: 'Tundra Esports', points: 1861 },
-          { rank: 2, team: 'Team Yandex', points: 1575 },
-          { rank: 3, team: 'Team Liquid', points: 1219 },
-          { rank: 4, team: 'Team Falcons', points: 1033 },
-          { rank: 5, team: 'Team Spirit', points: 898 },
-          { rank: 6, team: 'Aurora', points: 754 },
-          { rank: 7, team: 'BetBoom Team', points: 751 },
-          { rank: 8, team: 'Xtreme Gaming', points: 703 },
-          { rank: 9, team: 'MOUZ', points: 671 },
-          { rank: 10, team: 'PARIVISION', points: 600 },
-          { rank: 11, team: 'Natus Vincere', points: 538 },
-          { rank: 12, team: 'Heroic', points: 478 },
-          { rank: 13, team: 'OG', points: 349 },
-          { rank: 14, team: 'GamerLegion', points: 298 },
-          { rank: 15, team: 'Vici Gaming', points: 284 },
-          { rank: 16, team: 'Rekonix', points: 232 },
-          { rank: 17, team: 'Power Rangers', points: 227 },
-          { rank: 18, team: 'paiN Gaming', points: 223 },
-          { rank: 19, team: 'Execration', points: 186 },
-          { rank: 20, team: 'Nigma Galaxy', points: 185 },
-          { rank: 21, team: 'Virtus.pro', points: 174 },
-          { rank: 22, team: 'Team Nemesis', points: 144 },
-          { rank: 23, team: '1win Team', points: 120 },
-          { rank: 24, team: 'Yakult Brothers', points: 119 },
-          { rank: 25, team: 'Pipsqueak+4', points: 69 },
-          { rank: 26, team: 'Team Silk', points: 66 },
-          { rank: 27, team: 'Zero Tenacity', points: 59 },
-          { rank: 28, team: 'PlayTime', points: 55 },
-          { rank: 29, team: 'Amaru Gaming', points: 34 },
-          { rank: 30, team: 'Inner Circle', points: 34 }
+          { rank: 1,  team: 'Tundra Esports',  points: 1861 },
+          { rank: 2,  team: 'Team Yandex',      points: 1575 },
+          { rank: 3,  team: 'Team Liquid',      points: 1219 },
+          { rank: 4,  team: 'Team Falcons',     points: 1033 },
+          { rank: 5,  team: 'Team Spirit',      points: 898  },
+          { rank: 6,  team: 'Aurora',           points: 754  },
+          { rank: 7,  team: 'BetBoom Team',     points: 751  },
+          { rank: 8,  team: 'Xtreme Gaming',    points: 703  },
+          { rank: 9,  team: 'MOUZ',             points: 671  },
+          { rank: 10, team: 'PARIVISION',       points: 600  },
+          { rank: 11, team: 'Natus Vincere',    points: 538  },
+          { rank: 12, team: 'Heroic',           points: 478  },
+          { rank: 13, team: 'OG',               points: 349  },
+          { rank: 14, team: 'GamerLegion',      points: 298  },
+          { rank: 15, team: 'Vici Gaming',      points: 284  },
+          { rank: 16, team: 'Rekonix',          points: 232  },
+          { rank: 17, team: 'Power Rangers',    points: 227  },
+          { rank: 18, team: 'paiN Gaming',      points: 223  },
+          { rank: 19, team: 'Execration',       points: 186  },
+          { rank: 20, team: 'Nigma Galaxy',     points: 185  },
+          { rank: 21, team: 'Virtus.pro',       points: 174  },
+          { rank: 22, team: 'Team Nemesis',     points: 144  },
+          { rank: 23, team: '1win Team',        points: 120  },
+          { rank: 24, team: 'Yakult Brothers',  points: 119  },
+          { rank: 25, team: 'Pipsqueak+4',      points: 69   },
+          { rank: 26, team: 'Team Silk',        points: 66   },
+          { rank: 27, team: 'Zero Tenacity',    points: 59   },
+          { rank: 28, team: 'PlayTime',         points: 55   },
+          { rank: 29, team: 'Amaru Gaming',     points: 34   },
+          { rank: 30, team: 'Inner Circle',     points: 34   }
         ];
         rankingsCache = fallback;
         renderRankings(fallback);
@@ -2943,7 +2959,7 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.38';
+  const VERSION = '1.0.39';
   const LAST_UPDATE = '2026-04-04';
   const CHANGELOG = [
     { v: '1.0.33', date: '2026-04-03', notes: [

@@ -92,27 +92,23 @@
       display: none !important;
     }
 
-    /* Version badge - diskret i övre vänstra hörnet */
+    /* Version badge - top-left corner inside header */
     .version-badge {
-      position: fixed;
-      top: 1.5rem;
-      left: 1.5rem;
-      font-size: 0.7rem;
+      display: inline-block;
+      font-size: 0.68rem;
       color: var(--muted);
-      background: rgba(0, 0, 0, 0.4);
-      padding: 0.5rem 0.7rem;
+      background: rgba(255,255,255,0.04);
+      padding: 0.3rem 0.55rem;
       border-radius: 3px;
       border: 1px solid var(--border);
       white-space: nowrap;
-      z-index: 9999;
       font-family: 'IBM Plex Mono', monospace;
       letter-spacing: 0.05em;
-      cursor: help;
-      pointer-events: auto;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
     }
     .version-badge:hover {
       color: var(--text);
-      background: rgba(0, 0, 0, 0.6);
       border-color: var(--accent2);
     }
 
@@ -1156,6 +1152,7 @@
 <body>
   <!-- WIDGET: Main header with nav -->
   <div class="main-header">
+    <div id="version-badge-anchor" style="position:absolute;top:0.6rem;left:0.8rem;"></div>
     <div class="main-logo">
       Ultimate <span>Dashboard</span>
     </div>
@@ -1304,7 +1301,7 @@
         <button onclick="closeStream()">&#x2715; Close</button>
       </div>
     </div>
-    <iframe id="stream-frame" src="" allowfullscreen allow="autoplay; fullscreen; picture-in-picture; encrypted-media"></iframe>
+    <iframe id="stream-frame" src="" frameborder="0" scrolling="no" allowfullscreen="true" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share; fullscreen"></iframe>
   </div>
 
 <script>
@@ -2941,7 +2938,7 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.41';
+  const VERSION = '1.0.42';
   const LAST_UPDATE = '2026-04-04';
   const CHANGELOG = [
     { v: '1.0.33', date: '2026-04-03', notes: [
@@ -2995,7 +2992,10 @@
   versionBadge.title = 'Click to see changelog';
   versionBadge.style.cursor = 'pointer';
   versionBadge.addEventListener('click', () => { clModal.style.display = 'flex'; });
-  document.body.appendChild(versionBadge);
+  // Mount inside header anchor so it's always visible in top-left
+  const anchor = document.getElementById('version-badge-anchor');
+  if (anchor) anchor.appendChild(versionBadge);
+  else document.body.appendChild(versionBadge);
 </script>
 </div>
 </body>

@@ -1632,11 +1632,13 @@
       const parentStr = [...parents].map(h => `parent=${h}`).join('&');
       src = `https://player.twitch.tv/?channel=${channel}&${parentStr}`;
     } else if (type === 'kick') {
-      src = `https://player.kick.com/${channel}`;
+      // Kick embeds are unreliable — open in new tab
+      window.open(`https://kick.com/${channel}`, '_blank');
+      if (tournPage) setActiveStandingsTournament(tournPage, tournName);
+      return;
     } else if (type === 'yt') {
-      src = `https://www.youtube.com/@${channel}/live`;
-      // YouTube can't be embedded directly — open in new tab instead
-      window.open(src, '_blank');
+      // YouTube can't be embedded — open in new tab
+      window.open(`https://www.youtube.com/@${channel}/live`, '_blank');
       if (tournPage) setActiveStandingsTournament(tournPage, tournName);
       return;
     }
@@ -2959,7 +2961,7 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.39';
+  const VERSION = '1.0.40';
   const LAST_UPDATE = '2026-04-04';
   const CHANGELOG = [
     { v: '1.0.33', date: '2026-04-03', notes: [

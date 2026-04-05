@@ -1301,7 +1301,7 @@
         <button onclick="closeStream()">&#x2715; Close</button>
       </div>
     </div>
-    <iframe id="stream-frame" src="" frameborder="0" scrolling="no" allowfullscreen="true" allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share; fullscreen"></iframe>
+    <iframe id="stream-frame" src="" frameborder="0" scrolling="no" allowfullscreen="true"></iframe>
   </div>
 
 <script>
@@ -1615,7 +1615,7 @@
       const parentStr = [...parents].map(h => `parent=${h}`).join('&');
       src = `https://player.twitch.tv/?channel=${channel}&${parentStr}`;
     } else if (type === 'kick') {
-      src = `https://player.kick.com/${channel}?autoplay=true`;
+      src = `https://player.kick.com/${channel}`;
     } else {
       return; // unsupported type
     }
@@ -2938,8 +2938,8 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.42';
-  const LAST_UPDATE = '2026-04-04';
+  const VERSION = '1.0.43';
+  const LAST_UPDATE = '2026-04-05';
   const CHANGELOG = [
     { v: '1.0.33', date: '2026-04-03', notes: [
       'Clicking a match or pressing Watch now auto-switches Standings to that tournament',

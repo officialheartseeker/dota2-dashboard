@@ -243,7 +243,7 @@
     }
     .xfer-player {
       font-weight: 700;
-      color: var(--accent2);
+      color: #b388ff;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
@@ -3190,23 +3190,65 @@
     } catch { return ''; }
   }
 
-  // Extract country code from a DOM element's img tags (flag images)
-  // Supports flagcdn.com, circle-flags, and alt=CC patterns
+  // Extract country code from a DOM element's img tags and other hints
   function extractCountry(el) {
     if (!el) return '';
     const imgs = el.querySelectorAll('img');
     for (const img of imgs) {
-      const src = img.getAttribute('src') || '';
-      const alt = (img.getAttribute('alt') || '').trim();
-      // flagcdn.com: /24x18/se.png  or /se.svg
-      const mSrc = src.match(/\/([a-z]{2})\.(png|svg|webp)(?:[?#]|$)/i)
+      const src   = img.getAttribute('src')   || '';
+      const alt   = (img.getAttribute('alt')   || '').trim();
+      const title = (img.getAttribute('title') || '').trim();
+
+      // flagcdn.com: /24x18/se.png, /se.svg, /se.png
+      const mSrc = src.match(/\/([a-z]{2})\.(?:png|svg|webp)(?:[?#]|$)/i)
                 || src.match(/flags?[/_-]([a-z]{2})[._/-]/i)
-                || src.match(/country[/_-]?([a-z]{2})/i);
+                || src.match(/country[/_-]?([a-z]{2})/i)
+                || src.match(/\/([a-z]{2})\/flag/i);
       if (mSrc) return mSrc[1].toLowerCase();
-      // alt = "SE" or "se" (2-letter country code)
-      if (/^[a-z]{2}$/i.test(alt)) return alt.toLowerCase();
+
+      // alt or title = 2-letter ISO code
+      if (/^[a-z]{2}$/i.test(alt))   return alt.toLowerCase();
+      if (/^[a-z]{2}$/i.test(title)) return title.toLowerCase();
+
+      // alt or title = full country name
+      const cc = liquipediaCountryCode(alt) || liquipediaCountryCode(title);
+      if (cc) return cc;
+    }
+
+    // Also check span/div with title containing a country name
+    for (const span of el.querySelectorAll('[title],[data-country],[data-cc]')) {
+      const t = span.getAttribute('title') || span.getAttribute('data-country') || span.getAttribute('data-cc') || '';
+      if (/^[a-z]{2}$/i.test(t.trim())) return t.trim().toLowerCase();
+      const cc = liquipediaCountryCode(t.trim());
+      if (cc) return cc;
     }
     return '';
+  }
+
+  // Try to extract country codes from cyberscore's RSC/Next.js JSON chunks
+  function extractCountriesFromRSC(pageHtml) {
+    // Map player_id → country_code
+    const map = {};
+    // RSC chunks: self.__next_f.push([1,"..."])  — JSON strings inside
+    const re = /self\.__next_f\.push\(\[1,"((?:[^"\\]|\\.)*)"\]\)/g;
+    let m;
+    while ((m = re.exec(pageHtml)) !== null) {
+      try {
+        const chunk = JSON.parse('"' + m[1] + '"'); // unescape the JSON string
+        // Look for {"player_id":NNN,...,"country":"XX"} or similar patterns
+        const playerRe = /"player(?:_id)?"\s*:\s*(\d+)[^}]{0,200}"country(?:_code)?"\s*:\s*"([a-z]{2})"/gi;
+        let pm;
+        while ((pm = playerRe.exec(chunk)) !== null) {
+          map[pm[1]] = pm[2].toLowerCase();
+        }
+        // Also "nationality":"XX" near player links
+        const natRe = /"(?:nationality|country_code)"\s*:\s*"([a-z]{2})"/gi;
+        while ((pm = natRe.exec(chunk)) !== null) {
+          // Can't map to player without more context, skip for now
+        }
+      } catch {}
+    }
+    return map;
   }
 
   // Extract only the first text node from an element (skips child spans/tags)
@@ -3230,6 +3272,8 @@
   function parseCyberscoreTransfers(pageHtml) {
     const tmp = document.createElement('div');
     tmp.innerHTML = pageHtml;
+    // Pre-build player_id → country map from RSC JSON chunks
+    const rscCountries = extractCountriesFromRSC(pageHtml);
     const rows = [];
     const seen = new Set();
     // Known skip words (table section headers)
@@ -3269,10 +3313,12 @@
       const dateMatch = rowText.match(/(\d{2})\.(\d{2})\.(\d{4})/);
       if (!dateMatch) return;
 
-      const player  = firstTextOf(playerA) || playerA.textContent.trim();
-      const from    = firstTextOf(teamLinks[0]) || '—';
-      const to      = firstTextOf(teamLinks[1]) || firstTextOf(teamLinks[0]) || '—';
-      const country = extractCountry(tds[0]) || extractCountry(tds[1]) || extractCountry(tr);
+      const player   = firstTextOf(playerA) || playerA.textContent.trim();
+      const from     = firstTextOf(teamLinks[0]) || '—';
+      const to       = firstTextOf(teamLinks[1]) || firstTextOf(teamLinks[0]) || '—';
+      const pidMatch = (playerA.getAttribute('href') || '').match(/\/players\/(\d+)/);
+      const country  = (pidMatch && rscCountries[pidMatch[1]])
+                    || extractCountry(tds[0]) || extractCountry(tds[1]) || extractCountry(tr);
 
       // Transfer type: what's left after removing known pieces
       let typeRaw = rowText;
@@ -3287,8 +3333,10 @@
     // Strategy 2: walk up from each player link to find a date-containing container
     tmp.querySelectorAll('a[href*="/en/players/"]').forEach(playerA => {
       if (!/\/players\/\d+/.test(playerA.getAttribute('href') || '')) return;
-      const player  = firstTextOf(playerA) || playerA.textContent.trim();
-      const country = extractCountry(playerA.closest('td, div, li') || playerA.parentElement);
+      const player   = firstTextOf(playerA) || playerA.textContent.trim();
+      const pidMatch2 = (playerA.getAttribute('href') || '').match(/\/players\/(\d+)/);
+      const country  = (pidMatch2 && rscCountries[pidMatch2[1]])
+                    || extractCountry(playerA.closest('td, div, li') || playerA.parentElement);
       let el = playerA.parentElement;
       for (let depth = 0; depth < 6 && el; depth++) {
         const teamLinks = [...el.querySelectorAll('a[href*="/en/teams/"]')];
@@ -3443,7 +3491,7 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.57';
+  const VERSION = '1.0.58';
   const LAST_UPDATE = '2026-04-06';
   const CHANGELOG = [
     { v: '1.0.53', date: '2026-04-06', notes: [

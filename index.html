@@ -235,6 +235,12 @@
     }
     .xfer-row:hover { background: rgba(255,255,255,0.03); }
 
+    .xfer-flag {
+      margin-right: 0.3rem;
+      font-size: 0.85rem;
+      line-height: 1;
+      vertical-align: middle;
+    }
     .xfer-player {
       font-weight: 700;
       color: var(--accent2);
@@ -3145,6 +3151,64 @@
       });
   }
 
+  // Map Liquipedia country name → ISO 3166-1 alpha-2
+  function liquipediaCountryCode(name) {
+    const MAP = {
+      Sweden:'se', Russia:'ru', Ukraine:'ua', Denmark:'dk', Finland:'fi',
+      Norway:'no', Germany:'de', France:'fr', Poland:'pl', Romania:'ro',
+      Bulgaria:'bg', Czech:'cz', Slovakia:'sk', Belarus:'by', Latvia:'lv',
+      Lithuania:'lt', Estonia:'ee', Hungary:'hu', Austria:'at', Switzerland:'ch',
+      Netherlands:'nl', Belgium:'be', Luxembourg:'lu', Spain:'es', Portugal:'pt',
+      Italy:'it', GreatBritain:'gb', UnitedKingdom:'gb', England:'gb',
+      UnitedStates:'us', Canada:'ca', Australia:'au', NewZealand:'nz',
+      China:'cn', Japan:'jp', SouthKorea:'kr', Philippines:'ph',
+      Indonesia:'id', Malaysia:'my', Thailand:'th', Singapore:'sg',
+      Vietnam:'vn', Cambodia:'kh', Myanmar:'mm', Mongolia:'mn',
+      Kazakhstan:'kz', Kyrgyzstan:'kg', Uzbekistan:'uz', Tajikistan:'tj',
+      Azerbaijan:'az', Georgia:'ge', Armenia:'am', Turkey:'tr',
+      Israel:'il', Jordan:'jo', Lebanon:'lb', Egypt:'eg', Morocco:'ma',
+      Brazil:'br', Argentina:'ar', Chile:'cl', Peru:'pe', Colombia:'co',
+      Mexico:'mx', Venezuela:'ve', Bolivia:'bo', Paraguay:'py', Uruguay:'uy',
+      SriLanka:'lk', Bangladesh:'bd', Pakistan:'pk', India:'in', Nepal:'np',
+    };
+    // Try exact, then partial match
+    if (MAP[name]) return MAP[name];
+    const lower = name.toLowerCase();
+    const found = Object.keys(MAP).find(k => k.toLowerCase() === lower);
+    return found ? MAP[found] : '';
+  }
+
+  // Convert ISO 3166-1 alpha-2 country code → flag emoji
+  function toFlagEmoji(cc) {
+    if (!cc || cc.length !== 2) return '';
+    try {
+      const base = 0x1F1E6 - 65; // 'A'.charCodeAt(0)
+      return String.fromCodePoint(
+        cc.toUpperCase().charCodeAt(0) + base,
+        cc.toUpperCase().charCodeAt(1) + base
+      );
+    } catch { return ''; }
+  }
+
+  // Extract country code from a DOM element's img tags (flag images)
+  // Supports flagcdn.com, circle-flags, and alt=CC patterns
+  function extractCountry(el) {
+    if (!el) return '';
+    const imgs = el.querySelectorAll('img');
+    for (const img of imgs) {
+      const src = img.getAttribute('src') || '';
+      const alt = (img.getAttribute('alt') || '').trim();
+      // flagcdn.com: /24x18/se.png  or /se.svg
+      const mSrc = src.match(/\/([a-z]{2})\.(png|svg|webp)(?:[?#]|$)/i)
+                || src.match(/flags?[/_-]([a-z]{2})[._/-]/i)
+                || src.match(/country[/_-]?([a-z]{2})/i);
+      if (mSrc) return mSrc[1].toLowerCase();
+      // alt = "SE" or "se" (2-letter country code)
+      if (/^[a-z]{2}$/i.test(alt)) return alt.toLowerCase();
+    }
+    return '';
+  }
+
   // Extract only the first text node from an element (skips child spans/tags)
   function firstTextOf(el) {
     if (!el) return '';
@@ -3171,7 +3235,7 @@
     // Known skip words (table section headers)
     const SKIP = new Set(['players','top players','teams','name','player','transfer','date']);
 
-    const addRow = (player, from, to, type, dateText) => {
+    const addRow = (player, from, to, type, dateText, country) => {
       const pClean = player.trim();
       if (!pClean || pClean.length < 2) return;
       if (SKIP.has(pClean.toLowerCase())) return;
@@ -3184,6 +3248,7 @@
       rows.push({
         date: dateMatch[0], dateISO,
         player: pClean,
+        country: (country || '').toLowerCase().trim(),
         from:   (from  || '—').replace(/\s+/g,' ').trim(),
         to:     (to    || '—').replace(/\s+/g,' ').trim(),
         type:   (type  || '').replace(/\s+/g,' ').trim().substring(0, 60)
@@ -3204,16 +3269,17 @@
       const dateMatch = rowText.match(/(\d{2})\.(\d{2})\.(\d{4})/);
       if (!dateMatch) return;
 
-      const player = firstTextOf(playerA) || playerA.textContent.trim();
-      const from   = firstTextOf(teamLinks[0]) || '—';
-      const to     = firstTextOf(teamLinks[1]) || firstTextOf(teamLinks[0]) || '—';
+      const player  = firstTextOf(playerA) || playerA.textContent.trim();
+      const from    = firstTextOf(teamLinks[0]) || '—';
+      const to      = firstTextOf(teamLinks[1]) || firstTextOf(teamLinks[0]) || '—';
+      const country = extractCountry(tds[0]) || extractCountry(tds[1]) || extractCountry(tr);
 
       // Transfer type: what's left after removing known pieces
       let typeRaw = rowText;
       [player, from, to, dateMatch[0]].forEach(s => { typeRaw = typeRaw.replace(s, ''); });
       const type = typeRaw.replace(/→/g,'').replace(/\s+/g,' ').trim().replace(/^[-–—]+/,'').trim();
 
-      addRow(player, from, to, type, dateMatch[0]);
+      addRow(player, from, to, type, dateMatch[0], country);
     });
 
     if (rows.length) return rows;
@@ -3221,7 +3287,8 @@
     // Strategy 2: walk up from each player link to find a date-containing container
     tmp.querySelectorAll('a[href*="/en/players/"]').forEach(playerA => {
       if (!/\/players\/\d+/.test(playerA.getAttribute('href') || '')) return;
-      const player = firstTextOf(playerA) || playerA.textContent.trim();
+      const player  = firstTextOf(playerA) || playerA.textContent.trim();
+      const country = extractCountry(playerA.closest('td, div, li') || playerA.parentElement);
       let el = playerA.parentElement;
       for (let depth = 0; depth < 6 && el; depth++) {
         const teamLinks = [...el.querySelectorAll('a[href*="/en/teams/"]')];
@@ -3231,7 +3298,7 @@
         if (dateMatch && teamLinks.length >= 1) {
           const from = firstTextOf(teamLinks[0]) || '—';
           const to   = firstTextOf(teamLinks[1]) || from;
-          addRow(player, from, to, '', dateMatch[0]);
+          addRow(player, from, to, '', dateMatch[0], country);
           break;
         }
         el = el.parentElement;
@@ -3262,7 +3329,14 @@
           const dateMatch = dateText.match(/(\d{4})-(\d{2})-(\d{2})/);
           const dateISO = dateMatch ? dateText.trim() : '';
           const dateDisplay = dateMatch ? `${dateMatch[3]}.${dateMatch[2]}.${dateMatch[1]}` : dateText;
-          rows.push({ date: dateDisplay, dateISO, player, from, to, type: '', source: 'liquipedia' });
+          // Liquipedia embeds flag images like Flag_Sweden.png — extract country from them
+          const flagImg = tds[1]?.querySelector('img[src*="Flag_"]');
+          let country = '';
+          if (flagImg) {
+            const m = (flagImg.getAttribute('src') || '').match(/Flag_([A-Za-z]+)\./);
+            if (m) country = liquipediaCountryCode(m[1]);
+          }
+          rows.push({ date: dateDisplay, dateISO, player, from, to, type: '', country, source: 'liquipedia' });
         });
         if (!rows.length) throw new Error('No Liquipedia transfers found');
         rows.sort((a, b) => (b.dateISO || '').localeCompare(a.dateISO || ''));
@@ -3306,8 +3380,9 @@
                         : /loan/i.test(r.type)  ? 'xfer-type-loan'
                         : /coach/i.test(r.type) ? 'xfer-type-coach'
                         : 'xfer-type-join';
+        const flag = r.country ? `<span class="xfer-flag" title="${r.country.toUpperCase()}">${toFlagEmoji(r.country)}</span>` : '';
         html += `<div class="xfer-row">
-          <span class="xfer-player">${escHtml(r.player)}</span>
+          <span class="xfer-player">${flag}${escHtml(r.player)}</span>
           <span class="xfer-from">${escHtml(r.from)}</span>
           <span class="xfer-arrow">→</span>
           <span class="xfer-to${isSameTeam ? ' xfer-same' : ''}">${escHtml(r.to)}</span>
@@ -3368,7 +3443,7 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.56';
+  const VERSION = '1.0.57';
   const LAST_UPDATE = '2026-04-06';
   const CHANGELOG = [
     { v: '1.0.53', date: '2026-04-06', notes: [

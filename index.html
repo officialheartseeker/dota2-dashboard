@@ -3121,6 +3121,7 @@
 
     body.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading transfers…</div>';
     transfersCache = null;
+    if (force) try { sessionStorage.removeItem('xfer_countries'); } catch {}
 
     // Try proxies in order until one works
     const TARGET = 'https://cyberscore.live/en/transfers/';
@@ -3144,6 +3145,8 @@
         rows.sort((a, b) => (b.dateISO || b.date).localeCompare(a.dateISO || a.date));
         transfersCache = rows;
         renderTransfers(rows);
+        // Enrich with country flags in background via OpenDota
+        enrichTransfersCountry(rows);
       })
       .catch(() => {
         // Fallback: Liquipedia transfers page
@@ -3390,10 +3393,69 @@
         rows.sort((a, b) => (b.dateISO || '').localeCompare(a.dateISO || ''));
         transfersCache = rows;
         renderTransfers(rows);
+        enrichTransfersCountry(rows);
       })
       .catch(err => {
         body.innerHTML = `<div class="empty-state" style="padding:1rem;">Could not load transfers.<br><span style="font-size:0.7rem;color:var(--muted);">cyberscore.live + Liquipedia both failed</span></div>`;
       });
+  }
+
+  // Enrich transfer rows with country codes from OpenDota player search.
+  // Runs after initial render; re-renders once all searches complete.
+  // Results cached in sessionStorage to avoid repeat calls on re-render/refresh.
+  const _countryCache = JSON.parse(sessionStorage.getItem('xfer_countries') || '{}');
+
+  async function enrichTransfersCountry(rows) {
+    const toFetch = [...new Set(
+      rows.filter(r => !r.country).map(r => r.player)
+    )];
+    if (!toFetch.length) return;
+
+    // Load cache hits immediately
+    toFetch.forEach(name => {
+      if (_countryCache[name]) {
+        rows.forEach(r => { if (r.player === name && !r.country) r.country = _countryCache[name]; });
+      }
+    });
+
+    const uncached = toFetch.filter(n => !_countryCache[n]);
+    if (!uncached.length) { renderTransfers(rows); return; }
+
+    // Fetch in parallel batches of 6
+    const BATCH = 6;
+    for (let i = 0; i < uncached.length; i += BATCH) {
+      await Promise.allSettled(
+        uncached.slice(i, i + BATCH).map(async name => {
+          try {
+            const res = await fetch(
+              'https://api.opendota.com/api/search?q=' + encodeURIComponent(name),
+              { signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined }
+            );
+            if (!res.ok) return;
+            const data = await res.json();
+            if (!Array.isArray(data) || !data.length) return;
+
+            // Prefer exact match on personaname, else first result
+            const match = data.find(p =>
+              (p.personaname || '').toLowerCase() === name.toLowerCase()
+            ) || data[0];
+
+            const cc = (match.country_code || '').toLowerCase();
+            if (cc && cc.length === 2) {
+              _countryCache[name] = cc;
+              rows.forEach(r => { if (r.player === name && !r.country) r.country = cc; });
+            } else {
+              _countryCache[name] = ''; // negative cache
+            }
+          } catch {}
+        })
+      );
+    }
+
+    // Persist cache and re-render with flags
+    try { sessionStorage.setItem('xfer_countries', JSON.stringify(_countryCache)); } catch {}
+    transfersCache = rows;
+    renderTransfers(rows);
   }
 
   function renderTransfers(rows) {
@@ -3491,7 +3553,7 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.58';
+  const VERSION = '1.0.59';
   const LAST_UPDATE = '2026-04-06';
   const CHANGELOG = [
     { v: '1.0.53', date: '2026-04-06', notes: [

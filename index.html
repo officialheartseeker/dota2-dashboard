@@ -1165,6 +1165,45 @@
       color: var(--text);
     }
 
+    /* ── RANKINGS SUB-TABS ── */
+    .rankings-subtabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: var(--card);
+    }
+    .rankings-subtab {
+      flex: 1;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      padding: 0.45rem 0.5rem;
+      font-size: 0.72rem;
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .rankings-subtab:hover { color: var(--text); }
+    .rankings-subtab.active { color: var(--accent2); border-bottom-color: var(--accent2); }
+    .region-btn {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      padding: 0.2rem 0.55rem;
+      border-radius: 3px;
+      font-size: 0.68rem;
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 600;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .region-btn:hover { color: var(--text); border-color: var(--accent2); }
+    .region-btn.active { background: var(--accent2); color: #000; border-color: var(--accent2); }
+
     /* ── RANKINGS TABLE ── */
     .rankings-table {
       width: 100%;
@@ -1323,17 +1362,33 @@
 
   <!-- Rankings & Transfers tab panel (full-width, hidden by default) -->
   <div id="rankings-transfers-panel">
-    <!-- World Rankings -->
+    <!-- World Rankings (Teams + Players) -->
     <div class="widget" id="rankings-widget">
       <div class="widget-header">
         <div class="widget-title">
           <div class="logo-icon" style="background:#6b5c9d;">WR</div>
           <div class="widget-label">World Rankings</div>
         </div>
-        <span style="font-size:0.68rem;color:var(--muted);">DLTV.org</span>
       </div>
-      <div class="widget-body" id="rankings-body">
-        <div class="loading-state"><div class="loader"></div>Loading rankings...</div>
+      <!-- Sub-tabs: Teams | Players -->
+      <div class="rankings-subtabs">
+        <button class="rankings-subtab active" onclick="switchRankingsTab('teams')" id="rtab-teams">Teams</button>
+        <button class="rankings-subtab" onclick="switchRankingsTab('players')" id="rtab-players">Players</button>
+      </div>
+      <div id="rankings-body-teams">
+        <div class="loading-state"><div class="loader"></div>Loading team rankings...</div>
+      </div>
+      <div id="rankings-body-players" style="display:none;">
+        <!-- Region selector -->
+        <div style="padding:0.4rem 0.5rem;border-bottom:1px solid var(--border);background:var(--card);display:flex;gap:0.4rem;flex-wrap:wrap;">
+          <button class="region-btn active" onclick="loadPlayerRankings('europe')" id="rbtn-europe">Europe</button>
+          <button class="region-btn" onclick="loadPlayerRankings('americas')" id="rbtn-americas">Americas</button>
+          <button class="region-btn" onclick="loadPlayerRankings('se_asia')" id="rbtn-se_asia">SE Asia</button>
+          <button class="region-btn" onclick="loadPlayerRankings('china')" id="rbtn-china">China</button>
+        </div>
+        <div id="player-rankings-list">
+          <div class="loading-state"><div class="loader"></div>Loading player rankings...</div>
+        </div>
       </div>
     </div>
 
@@ -2851,111 +2906,150 @@
       });
   }
 
-  // Load rankings data (Top 30 teams)
-  let rankingsExpanded = false;
+  // ── Rankings sub-tab switch ──
+  let activeRankingsTab = 'teams';
 
-  function toggleRankingsExpand() {
-    rankingsExpanded = !rankingsExpanded;
-    loadRankingsData();
+  function switchRankingsTab(tab) {
+    activeRankingsTab = tab;
+    document.getElementById('rankings-body-teams').style.display   = tab === 'teams'   ? '' : 'none';
+    document.getElementById('rankings-body-players').style.display = tab === 'players' ? '' : 'none';
+    document.getElementById('rtab-teams').classList.toggle('active',   tab === 'teams');
+    document.getElementById('rtab-players').classList.toggle('active', tab === 'players');
+    if (tab === 'teams')   loadRankingsData();
+    if (tab === 'players') loadPlayerRankings(activePlayerRegion);
   }
 
+  // ── Team Rankings (top 100 via DLTV) ──
   let rankingsCache = null;
 
   function renderRankings(rankings) {
-    const body = document.getElementById('rankings-body');
-    const displayed = rankingsExpanded ? rankings : rankings.slice(0, 10);
-    let html = '<table class="rankings-table"><thead><tr><th style="width:2.5rem;">Rank</th><th>Team</th><th style="width:4rem;">Points</th></tr></thead><tbody>';
-    displayed.forEach(r => {
-      const logoHtml = r.logo ? `<img src="${r.logo}" referrerpolicy="no-referrer" style="width:16px;height:16px;object-fit:contain;margin-right:0.4rem;vertical-align:middle;flex-shrink:0;">` : '';
+    const body = document.getElementById('rankings-body-teams');
+    const top100 = rankings.slice(0, 100);
+    let html = '<table class="rankings-table"><thead><tr>'
+      + '<th style="width:2.5rem;">Rank</th><th>Team</th><th style="width:5rem;">Points</th>'
+      + '</tr></thead><tbody>';
+    top100.forEach(r => {
+      const logoHtml = r.logo
+        ? `<img src="${r.logo}" referrerpolicy="no-referrer" style="width:16px;height:16px;object-fit:contain;margin-right:0.4rem;vertical-align:middle;flex-shrink:0;">`
+        : '';
       html += `<tr>
         <td class="rank" style="text-align:center;">#${r.rank}</td>
-        <td class="team-name" style="display:flex;align-items:center;">${logoHtml}${r.team}</td>
+        <td class="team-name" style="display:flex;align-items:center;">${logoHtml}${escHtml(r.team)}</td>
         <td class="points">${typeof r.points === 'number' ? r.points.toLocaleString() : r.points}</td>
       </tr>`;
     });
     html += '</tbody></table>';
-    if (!rankingsExpanded) {
-      html += `<button onclick="toggleRankingsExpand()" style="width:100%;padding:0.5rem;margin-top:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;transition:all 0.2s;">▼ Show all ${rankings.length} teams</button>`;
-    } else {
-      html += '<button onclick="toggleRankingsExpand()" style="width:100%;padding:0.5rem;margin-top:0.5rem;background:var(--surface);border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;transition:all 0.2s;">▲ Collapse to top 10</button>';
-    }
+    html += `<div style="padding:0.4rem 0.6rem;font-size:0.65rem;color:var(--muted);border-top:1px solid var(--border);">Source: <a href="https://dltv.org/ranking" target="_blank" style="color:var(--accent2);">DLTV.org</a></div>`;
     body.innerHTML = html;
   }
 
   function loadRankingsData() {
-    const body = document.getElementById('rankings-body');
-
+    const body = document.getElementById('rankings-body-teams');
     if (rankingsCache) { renderRankings(rankingsCache); return; }
 
     body.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading rankings...</div>';
 
-    // Fetch live from DLTV (no auth required, data in HTML)
-    fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://dltv.org/ranking'))
-      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+    const proxyFetch = (url) => fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(url))
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); });
+
+    proxyFetch('https://dltv.org/ranking')
       .then(html => {
         const tmp = document.createElement('div');
         tmp.innerHTML = html;
         const rankings = [];
         tmp.querySelectorAll('.ranking__list-case__item').forEach(item => {
-          const rankEl = item.querySelector('.item__info-num');
-          const nameEl = item.querySelector('.item__info-team__name .name');
+          const rankEl   = item.querySelector('.item__info-num');
+          const nameEl   = item.querySelector('.item__info-team__name .name');
           const pointsEl = item.querySelector('.item__info-team__name .points');
-          const logoEl = item.querySelector('.item__info-logo');
-
-          const rankStr = rankEl?.textContent?.trim().replace('#', '') || '';
-          const rank = parseInt(rankStr, 10);
-          const team = nameEl?.textContent?.trim() || '';
-          const ptText = pointsEl?.textContent?.trim().replace(/[()]/g, '') || '';
-          const points = parseInt(ptText.replace(/[^0-9]/g, ''), 10) || 0;
-
-          // Logo: prefer dark theme src
-          const logo = logoEl?.getAttribute('data-theme-dark') || logoEl?.getAttribute('data-theme-light') || '';
-
+          const logoEl   = item.querySelector('.item__info-logo');
+          const rank     = parseInt((rankEl?.textContent || '').trim().replace('#',''), 10);
+          const team     = nameEl?.textContent?.trim() || '';
+          const points   = parseInt(((pointsEl?.textContent || '').replace(/[()]/g,'').replace(/[^0-9]/g,'')), 10) || 0;
+          const logo     = logoEl?.getAttribute('data-theme-dark') || logoEl?.getAttribute('data-theme-light') || '';
           if (rank && team) rankings.push({ rank, team, points, logo });
         });
-
         if (!rankings.length) throw new Error('No rankings parsed');
         rankings.sort((a, b) => a.rank - b.rank);
         rankingsCache = rankings;
         renderRankings(rankings);
       })
       .catch(() => {
-        // Static fallback (April 2026)
+        // Static fallback top 30 (April 2026)
         const fallback = [
-          { rank: 1,  team: 'Tundra Esports',  points: 1861 },
-          { rank: 2,  team: 'Team Yandex',      points: 1575 },
-          { rank: 3,  team: 'Team Liquid',      points: 1219 },
-          { rank: 4,  team: 'Team Falcons',     points: 1033 },
-          { rank: 5,  team: 'Team Spirit',      points: 898  },
-          { rank: 6,  team: 'Aurora',           points: 754  },
-          { rank: 7,  team: 'BetBoom Team',     points: 751  },
-          { rank: 8,  team: 'Xtreme Gaming',    points: 703  },
-          { rank: 9,  team: 'MOUZ',             points: 671  },
-          { rank: 10, team: 'PARIVISION',       points: 600  },
-          { rank: 11, team: 'Natus Vincere',    points: 538  },
-          { rank: 12, team: 'Heroic',           points: 478  },
-          { rank: 13, team: 'OG',               points: 349  },
-          { rank: 14, team: 'GamerLegion',      points: 298  },
-          { rank: 15, team: 'Vici Gaming',      points: 284  },
-          { rank: 16, team: 'Rekonix',          points: 232  },
-          { rank: 17, team: 'Power Rangers',    points: 227  },
-          { rank: 18, team: 'paiN Gaming',      points: 223  },
-          { rank: 19, team: 'Execration',       points: 186  },
-          { rank: 20, team: 'Nigma Galaxy',     points: 185  },
-          { rank: 21, team: 'Virtus.pro',       points: 174  },
-          { rank: 22, team: 'Team Nemesis',     points: 144  },
-          { rank: 23, team: '1win Team',        points: 120  },
-          { rank: 24, team: 'Yakult Brothers',  points: 119  },
-          { rank: 25, team: 'Pipsqueak+4',      points: 69   },
-          { rank: 26, team: 'Team Silk',        points: 66   },
-          { rank: 27, team: 'Zero Tenacity',    points: 59   },
-          { rank: 28, team: 'PlayTime',         points: 55   },
-          { rank: 29, team: 'Amaru Gaming',     points: 34   },
-          { rank: 30, team: 'Inner Circle',     points: 34   }
+          { rank:1,  team:'Tundra Esports', points:1861 }, { rank:2,  team:'Team Yandex',     points:1575 },
+          { rank:3,  team:'Team Liquid',    points:1219 }, { rank:4,  team:'Team Falcons',    points:1033 },
+          { rank:5,  team:'Team Spirit',    points:898  }, { rank:6,  team:'Aurora',          points:754  },
+          { rank:7,  team:'BetBoom Team',   points:751  }, { rank:8,  team:'Xtreme Gaming',   points:703  },
+          { rank:9,  team:'MOUZ',           points:671  }, { rank:10, team:'PARIVISION',      points:600  },
+          { rank:11, team:'Natus Vincere',  points:538  }, { rank:12, team:'Heroic',          points:478  },
+          { rank:13, team:'OG',             points:349  }, { rank:14, team:'GamerLegion',     points:298  },
+          { rank:15, team:'Vici Gaming',    points:284  }, { rank:16, team:'Rekonix',         points:232  },
+          { rank:17, team:'Power Rangers',  points:227  }, { rank:18, team:'paiN Gaming',     points:223  },
+          { rank:19, team:'Execration',     points:186  }, { rank:20, team:'Nigma Galaxy',    points:185  },
+          { rank:21, team:'Virtus.pro',     points:174  }, { rank:22, team:'Team Nemesis',    points:144  },
+          { rank:23, team:'1win Team',      points:120  }, { rank:24, team:'Yakult Brothers', points:119  },
+          { rank:25, team:'Pipsqueak+4',    points:69   }, { rank:26, team:'Team Silk',       points:66   },
+          { rank:27, team:'Zero Tenacity',  points:59   }, { rank:28, team:'PlayTime',        points:55   },
+          { rank:29, team:'Amaru Gaming',   points:34   }, { rank:30, team:'Inner Circle',    points:34   }
         ];
         rankingsCache = fallback;
         renderRankings(fallback);
       });
+  }
+
+  // ── Player Rankings (Valve in-game leaderboard, top 100 per region) ──
+  let activePlayerRegion = 'europe';
+  const playerRankingsCache = {};
+
+  function loadPlayerRankings(region) {
+    activePlayerRegion = region;
+    // Update region button states
+    ['europe','americas','se_asia','china'].forEach(r => {
+      const btn = document.getElementById('rbtn-' + r);
+      if (btn) btn.classList.toggle('active', r === region);
+    });
+
+    const list = document.getElementById('player-rankings-list');
+    if (playerRankingsCache[region]) { renderPlayerRankings(playerRankingsCache[region], region); return; }
+
+    list.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading…</div>';
+
+    // Valve public leaderboard API (no key required)
+    const apiUrl = `https://www.dota2.com/webapi/ILeaderboard/GetDivisionLeaderboard/v0001/?division=${region}&leaderboard=0`;
+    const proxy  = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(apiUrl);
+
+    fetch(proxy)
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(data => {
+        const rows = (data.leaderboard || []).slice(0, 100).map((p, i) => ({
+          rank: i + 1,
+          name: p.name || p.profile?.personaname || '—',
+          rating: p.rank_tier || null
+        }));
+        if (!rows.length) throw new Error('Empty leaderboard');
+        playerRankingsCache[region] = rows;
+        renderPlayerRankings(rows, region);
+      })
+      .catch(err => {
+        list.innerHTML = `<div class="empty-state" style="padding:1rem;">Could not load player rankings.<br><span style="font-size:0.68rem;color:var(--muted);">${err.message}</span></div>`;
+      });
+  }
+
+  function renderPlayerRankings(rows, region) {
+    const list = document.getElementById('player-rankings-list');
+    const regionLabel = { europe: 'Europe', americas: 'Americas', se_asia: 'SE Asia', china: 'China' }[region] || region;
+    let html = `<table class="rankings-table"><thead><tr>`
+      + `<th style="width:2.5rem;">Rank</th><th>Player</th>`
+      + `</tr></thead><tbody>`;
+    rows.forEach(r => {
+      html += `<tr>
+        <td class="rank" style="text-align:center;">#${r.rank}</td>
+        <td class="team-name">${escHtml(r.name)}</td>
+      </tr>`;
+    });
+    html += `</tbody></table>`;
+    html += `<div style="padding:0.4rem 0.6rem;font-size:0.65rem;color:var(--muted);border-top:1px solid var(--border);">Valve leaderboard · ${regionLabel} · Top 100</div>`;
+    list.innerHTML = html;
   }
 
   // ── Transfers (cyberscore.live) ──
@@ -2969,10 +3063,23 @@
     body.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading transfers…</div>';
     transfersCache = null;
 
-    // cyberscore.live is SSR Next.js — parse via allorigins proxy
-    const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://cyberscore.live/en/transfers/');
-    fetch(proxyUrl)
-      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+    // Try proxies in order until one works
+    const TARGET = 'https://cyberscore.live/en/transfers/';
+    const PROXIES = [
+      'https://api.allorigins.win/raw?url=' + encodeURIComponent(TARGET),
+      'https://api.allorigins.win/raw?url=' + encodeURIComponent(TARGET) + '&t=' + Date.now(), // cache-bust retry
+      'https://corsproxy.io/?' + encodeURIComponent(TARGET),
+    ];
+
+    const tryNext = (idx) => {
+      if (idx >= PROXIES.length) return Promise.reject(new Error('All proxies failed'));
+      return fetch(PROXIES[idx])
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+        .catch(() => tryNext(idx + 1));
+    };
+
+    tryNext(0)
+      .then(r => r)
       .then(html => {
         const tmp = document.createElement('div');
         tmp.innerHTML = html;
@@ -3116,9 +3223,14 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.52';
+  const VERSION = '1.0.54';
   const LAST_UPDATE = '2026-04-06';
   const CHANGELOG = [
+    { v: '1.0.53', date: '2026-04-06', notes: [
+      'Team rankings expanded to top 100 (was top 10 collapsed)',
+      'New Players sub-tab in Rankings: Valve in-game leaderboard top 100, per region (EU/Americas/SEA/CN)',
+      'Transfers: proxy fallback chain so a single proxy outage no longer breaks the feed'
+    ]},
     { v: '1.0.50', date: '2026-04-06', notes: [
       'New "Rankings & Transfers" tab with world rankings + live Liquipedia transfer feed',
       'Standings now expands across full right column (no more narrow middle panel)',

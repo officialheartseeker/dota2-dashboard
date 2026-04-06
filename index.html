@@ -231,6 +231,28 @@
       flex: 1;
     }
     .transfers-filter input:focus { outline: none; border-color: var(--accent2); }
+    .xfer-date-group {
+      padding: 0.35rem 0.6rem;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+    .xfer-date-header {
+      font-size: 0.68rem;
+      color: var(--accent2);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .xfer-type {
+      font-size: 0.65rem;
+      color: var(--muted);
+      white-space: nowrap;
+      text-align: right;
+    }
+    .xfer-type-join  { color: var(--live); }
+    .xfer-type-left  { color: var(--accent); }
+    .xfer-type-loan  { color: var(--accent2); }
+    .xfer-type-coach { color: #a78bfa; }
 
     /* ── RESIZE HANDLE (integrated in widget right edge) ── */
     .widget {
@@ -2936,7 +2958,7 @@
       });
   }
 
-  // ── Transfers ──
+  // ── Transfers (cyberscore.live) ──
   let transfersCache = null;
   let transfersAllRows = [];
 
@@ -2947,51 +2969,69 @@
     body.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading transfers…</div>';
     transfersCache = null;
 
-    const url = 'https://liquipedia.net/dota2/api.php?action=parse&page=Transfers&prop=text&format=json&origin=*';
-    fetch(url)
-      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-      .then(data => {
+    // cyberscore.live is SSR Next.js — parse via allorigins proxy
+    const proxyUrl = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://cyberscore.live/en/transfers/');
+    fetch(proxyUrl)
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+      .then(html => {
         const tmp = document.createElement('div');
-        tmp.innerHTML = data?.parse?.text?.['*'] || '';
+        tmp.innerHTML = html;
         const rows = [];
-        // Liquipedia transfer tables have class "wikitable"
-        tmp.querySelectorAll('table.wikitable tr').forEach(tr => {
-          const tds = tr.querySelectorAll('td');
-          if (tds.length < 4) return; // skip header rows (th only)
-          // Typical columns: Date | Player | Position | Old Team | New Team | Ref
-          const dateEl  = tds[0];
-          const playerEl = tds[1];
-          const posEl   = tds[2];
-          const fromEl  = tds[3];
-          const toEl    = tds[4];
-          if (!dateEl || !playerEl) return;
 
-          const date   = dateEl.textContent.trim().replace(/\s+/g, ' ');
-          const player = playerEl.textContent.trim().replace(/\s+/g, ' ');
-          const pos    = posEl?.textContent.trim() || '';
-          const from   = fromEl?.textContent.trim().replace(/\s+/g, ' ') || '—';
-          const to     = toEl?.textContent.trim().replace(/\s+/g, ' ') || '—';
-          if (player && player.length > 1) rows.push({ date, player, pos, from, to });
+        // Row structure (per cyberscore.live):
+        //  td[0] = player avatar img
+        //  td[1] = player link + real name span
+        //  td[2] = from-team link + status span
+        //  td[3] = arrow "→"
+        //  td[4] = to-team link
+        //  td[5] = transfer type description
+        //  td[6] = date DD.MM.YYYY
+        tmp.querySelectorAll('tr').forEach(tr => {
+          const tds = tr.querySelectorAll('td');
+          if (tds.length < 6) return;
+
+          const playerA  = tds[1]?.querySelector('a[href*="/players/"]');
+          const fromA    = tds[2]?.querySelector('a[href*="/teams/"]');
+          const toA      = tds[4]?.querySelector('a[href*="/teams/"]');
+          const typeText = tds[5]?.textContent?.trim() || '';
+          const dateText = tds[6]?.textContent?.trim() || tds[5]?.textContent?.trim() || '';
+
+          const player = playerA?.textContent?.trim() || tds[1]?.textContent?.trim() || '';
+          const from   = fromA?.textContent?.trim()   || tds[2]?.textContent?.trim() || '—';
+          const to     = toA?.textContent?.trim()     || tds[4]?.textContent?.trim() || '—';
+
+          // Date is DD.MM.YYYY — convert to YYYY-MM-DD for sorting
+          const dateParsed = dateText.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+          const dateISO = dateParsed ? `${dateParsed[3]}-${dateParsed[2]}-${dateParsed[1]}` : '';
+          const dateDisplay = dateText || dateISO;
+
+          const type = typeText.replace(dateText, '').trim(); // strip date if it bled into type col
+
+          if (player && player.length > 1 && dateDisplay) {
+            rows.push({ date: dateDisplay, dateISO, player, from, to, type });
+          }
         });
 
-        if (!rows.length) throw new Error('No transfers parsed');
-        // Most recent first (Liquipedia lists newest at top already)
+        if (!rows.length) throw new Error('No transfers found — page structure may have changed');
+        // Sort newest first (already newest-first from site, but ensure it)
+        rows.sort((a, b) => (b.dateISO || b.date).localeCompare(a.dateISO || a.date));
         transfersCache = rows;
         renderTransfers(rows);
       })
       .catch(err => {
-        body.innerHTML = `<div class="empty-state" style="padding:1rem;">Could not load transfers.<br><span style="font-size:0.7rem;color:var(--muted);">${err.message}</span></div>`;
+        body.innerHTML = `<div class="empty-state" style="padding:1rem;">Could not load transfers from cyberscore.live.<br><span style="font-size:0.7rem;color:var(--muted);">${err.message}</span></div>`;
       });
   }
 
   function renderTransfers(rows) {
     transfersAllRows = rows;
     const body = document.getElementById('transfers-body');
-    const q = (document.getElementById('transfers-search')?.value || '').toLowerCase();
+    const q = (document.getElementById('transfers-search')?.value || '').toLowerCase().trim();
     const filtered = q ? rows.filter(r =>
       r.player.toLowerCase().includes(q) ||
       r.from.toLowerCase().includes(q) ||
-      r.to.toLowerCase().includes(q)
+      r.to.toLowerCase().includes(q) ||
+      (r.type || '').toLowerCase().includes(q)
     ) : rows;
 
     if (!filtered.length) {
@@ -2999,23 +3039,35 @@
       return;
     }
 
-    let html = '<div style="overflow-x:auto;"><table class="transfers-table"><thead><tr>'
-      + '<th class="xfer-date">Date</th>'
-      + '<th>Player</th>'
-      + '<th>From</th>'
-      + '<th></th>'
-      + '<th>To</th>'
-      + '</tr></thead><tbody>';
+    // Group by date
+    const byDate = new Map();
     filtered.forEach(r => {
-      html += `<tr>
-        <td class="xfer-date">${r.date}</td>
-        <td class="xfer-player">${escHtml(r.player)}</td>
-        <td class="xfer-from">${escHtml(r.from)}</td>
-        <td class="xfer-arrow">→</td>
-        <td class="xfer-to">${escHtml(r.to)}</td>
-      </tr>`;
+      const key = r.date;
+      if (!byDate.has(key)) byDate.set(key, []);
+      byDate.get(key).push(r);
     });
-    html += '</tbody></table></div>';
+
+    let html = '<div style="overflow-x:auto;">';
+    byDate.forEach((dateRows, date) => {
+      html += `<div class="xfer-date-group"><span class="xfer-date-header">${escHtml(date)}</span></div>`;
+      html += '<table class="transfers-table"><tbody>';
+      dateRows.forEach(r => {
+        const typeClass = /left|released|retired/i.test(r.type) ? 'xfer-type-left'
+                        : /loan/i.test(r.type) ? 'xfer-type-loan'
+                        : /coach/i.test(r.type) ? 'xfer-type-coach'
+                        : 'xfer-type-join';
+        html += `<tr>
+          <td class="xfer-player">${escHtml(r.player)}</td>
+          <td class="xfer-from">${escHtml(r.from)}</td>
+          <td class="xfer-arrow">→</td>
+          <td class="xfer-to">${escHtml(r.to)}</td>
+          <td class="xfer-type ${typeClass}">${escHtml(r.type)}</td>
+        </tr>`;
+      });
+      html += '</tbody></table>';
+    });
+    html += `<div style="padding:0.6rem 0.75rem;font-size:0.68rem;color:var(--muted);border-top:1px solid var(--border);">Source: <a href="https://cyberscore.live/en/transfers/" target="_blank" style="color:var(--accent2);">cyberscore.live</a> · Page 1 of results (most recent)</div>`;
+    html += '</div>';
     body.innerHTML = html;
   }
 
@@ -3024,7 +3076,7 @@
   }
 
   function escHtml(s) {
-    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
 
   // Load news data (Aftonbladet)
@@ -3064,7 +3116,7 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.51';
+  const VERSION = '1.0.52';
   const LAST_UPDATE = '2026-04-06';
   const CHANGELOG = [
     { v: '1.0.50', date: '2026-04-06', notes: [

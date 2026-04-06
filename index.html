@@ -135,65 +135,102 @@
       padding: 1.5rem;
 
       display: grid;
-      grid-template-columns: var(--sidebar-width, 30%) var(--right-panel-width, 20%) 1fr;
+      grid-template-columns: var(--sidebar-width, 30%) 1fr;
       grid-template-rows: auto 1fr;
       gap: 1.25rem;
       align-items: start;
     }
 
-    /* Default view: position dota widget in first column */
+    /* Matches panel — left column */
     #dota-widget {
       grid-column: 1;
       grid-row: 2;
     }
 
-    /* Default Dota 2 view: flex container for standings and rankings */
+    /* Right column: standings + stream stacked */
     .all-widgets-right {
-      display: flex !important;
+      display: flex;
       flex-direction: column;
       gap: 1.25rem;
       grid-column: 2;
       grid-row: 2;
+      min-width: 0;
     }
 
-    /* All view layout - horizontal with dota left, rest right */
-    body.all-view {
-      grid-template-columns: var(--sidebar-width, 30%) var(--right-panel-width, 20%) 1fr;
-      grid-template-rows: auto 1fr;
-    }
-    body.all-view #dota-widget {
-      grid-column: 1;
-      grid-row: 2;
-    }
-
-    /* Stack right-side widgets vertically in a flex container */
-    body.all-view .all-widgets-right {
-      display: flex !important;
-      flex-direction: column;
-      gap: 1.25rem;
-      grid-column: 2;
-      grid-row: 2;
-    }
-
-    /* Ensure widgets inside flex container don't get grid positioning */
-    body.all-view .all-widgets-right > * {
-      grid-column: auto;
-      grid-row: auto;
-    }
-
-    /* Ensure all-widgets-right children don't break flex layout in any view */
+    /* Ensure all-widgets-right children don't break flex layout */
     .all-widgets-right > * {
       grid-column: auto !important;
       grid-row: auto !important;
     }
 
-    /* Explicit flex ordering: standings on top (order:1), rankings below (order:2) */
-    #standings-widget {
-      order: 1;
+    /* Rankings & Transfers full-width tab panel */
+    #rankings-transfers-panel {
+      display: none;
+      grid-column: 1 / -1;
+      grid-row: 2;
+      gap: 1.25rem;
+      align-items: start;
     }
-    #rankings-widget {
-      order: 2;
+    body.rankings-transfers-view #rankings-transfers-panel {
+      display: grid;
+      grid-template-columns: 320px 1fr;
     }
+    body.rankings-transfers-view #dota-widget,
+    body.rankings-transfers-view .all-widgets-right {
+      display: none !important;
+    }
+
+    /* Stream panel inside the right flex column */
+    .all-widgets-right .stream-panel {
+      flex-shrink: 0;
+    }
+
+    /* Transfers table */
+    .transfers-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.75rem;
+    }
+    .transfers-table th {
+      background: var(--surface);
+      color: var(--accent2);
+      padding: 0.45rem 0.5rem;
+      text-align: left;
+      font-weight: 600;
+      border-bottom: 1px solid var(--border);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+    .transfers-table td {
+      padding: 0.4rem 0.5rem;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      color: var(--text);
+      vertical-align: middle;
+    }
+    .transfers-table tr:hover td { background: rgba(232,135,42,0.04); }
+    .transfers-table .xfer-date { color: var(--muted); white-space: nowrap; width: 5.5rem; }
+    .transfers-table .xfer-player { font-weight: 600; color: var(--accent2); white-space: nowrap; }
+    .transfers-table .xfer-from { color: var(--muted); }
+    .transfers-table .xfer-to { color: var(--live); font-weight: 600; }
+    .transfers-table .xfer-arrow { color: var(--muted); padding: 0 0.15rem; }
+    .transfers-filter {
+      display: flex; gap: 0.5rem; align-items: center;
+      padding: 0.5rem 0.75rem;
+      border-bottom: 1px solid var(--border);
+      background: var(--card);
+    }
+    .transfers-filter input {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 0.25rem 0.5rem;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-family: 'IBM Plex Mono', monospace;
+      flex: 1;
+    }
+    .transfers-filter input:focus { outline: none; border-color: var(--accent2); }
 
     /* ── RESIZE HANDLE (integrated in widget right edge) ── */
     .widget {
@@ -1158,6 +1195,7 @@
     </div>
     <div class="dashboard-nav">
       <button class="nav-btn active" data-view="dota2" onclick="switchDashboard('dota2')">Dota 2</button>
+      <button class="nav-btn" data-view="rankings-transfers" onclick="switchDashboard('rankings-transfers')">Rankings &amp; Transfers</button>
       <button class="nav-btn" data-view="all" onclick="switchDashboard('all')">All</button>
       <button class="nav-btn" data-view="custom" onclick="switchDashboard('custom')">Custom</button>
     </div>
@@ -1226,25 +1264,10 @@
     </div>
   </div>
 
-  <!-- WIDGET 2-5 Container for right-side widgets -->
+  <!-- Right column: Standings + Stream stacked -->
   <div class="all-widgets-right">
-    <div class="resize-handle" id="right-resize-handle"></div>
-    <!-- WIDGET 5: World Rankings -->
-    <div class="widget" id="rankings-widget" draggable="true" style="display:none;">
-      <div class="widget-header">
-        <div class="drag-handle" title="Drag to reposition">⠿</div>
-        <div class="widget-title">
-          <div class="logo-icon" style="background:#6b5c9d;">WR</div>
-          <div class="widget-label">World Rankings</div>
-        </div>
-      </div>
-      <div class="widget-body" id="rankings-body">
-        <div class="loading-state"><div class="loader"></div>Loading rankings...</div>
-      </div>
-    </div>
-
-    <!-- WIDGET 2: Tournament Standings -->
-    <div class="standings-widget" id="standings-widget" draggable="true">
+    <!-- Tournament Standings -->
+    <div class="standings-widget" id="standings-widget">
       <div class="widget-header" style="position:relative;">
         <div class="drag-handle" title="Drag to reposition">⠿</div>
         <div class="widget-title">
@@ -1260,48 +1283,54 @@
       </div>
     </div>
 
-    <!-- WIDGET 3: Yahoo Finance TSLA (hidden) -->
-    <div class="widget" id="finance-widget" draggable="true" style="display:none;">
-      <div class="widget-header">
-        <div class="drag-handle" title="Drag to reposition">⠿</div>
-        <div class="widget-title">
-          <div class="logo-icon" style="background:#110e0f;font-size:0.65rem;">$</div>
-          <div class="widget-label">Tesla · Stock</div>
+    <!-- Stream panel — lives below standings -->
+    <div id="stream-panel" class="stream-panel hidden">
+      <div class="stream-header">
+        <div class="stream-info">
+          <div class="stream-live-dot"></div>
+          <span class="stream-label" id="stream-label">Watching...</span>
+        </div>
+        <div class="stream-actions">
+          <button onclick="toggleFullscreen()">&#x26F6; Fullscreen</button>
+          <button onclick="closeStream()">&#x2715; Close</button>
         </div>
       </div>
-      <div class="widget-body" id="finance-body">
-        <div class="loading-state"><div class="loader"></div>Loading TSLA...</div>
-      </div>
-    </div>
-
-    <!-- WIDGET 4: Aftonbladet News (hidden) -->
-    <div class="widget" id="news-widget" draggable="true" style="display:none;">
-      <div class="widget-header">
-        <div class="drag-handle" title="Drag to reposition">⠿</div>
-        <div class="widget-title">
-          <div class="logo-icon" style="background:#c41e3a;">AB</div>
-          <div class="widget-label">Aftonbladet · News</div>
-        </div>
-      </div>
-      <div class="widget-body" id="news-body">
-        <div class="loading-state"><div class="loader"></div>Loading news...</div>
-      </div>
+      <iframe id="stream-frame" src="" frameborder="0" scrolling="no" allowfullscreen="true" allow="autoplay; fullscreen"></iframe>
     </div>
   </div>
 
-  <!-- STREAM PANEL -->
-  <div id="stream-panel" class="stream-panel hidden">
-    <div class="stream-header">
-      <div class="stream-info">
-        <div class="stream-live-dot"></div>
-        <span class="stream-label" id="stream-label">Watching...</span>
+  <!-- Rankings & Transfers tab panel (full-width, hidden by default) -->
+  <div id="rankings-transfers-panel">
+    <!-- World Rankings -->
+    <div class="widget" id="rankings-widget">
+      <div class="widget-header">
+        <div class="widget-title">
+          <div class="logo-icon" style="background:#6b5c9d;">WR</div>
+          <div class="widget-label">World Rankings</div>
+        </div>
+        <span style="font-size:0.68rem;color:var(--muted);">DLTV.org</span>
       </div>
-      <div class="stream-actions">
-        <button onclick="toggleFullscreen()">&#x26F6; Fullscreen</button>
-        <button onclick="closeStream()">&#x2715; Close</button>
+      <div class="widget-body" id="rankings-body">
+        <div class="loading-state"><div class="loader"></div>Loading rankings...</div>
       </div>
     </div>
-    <iframe id="stream-frame" src="" frameborder="0" scrolling="no" allowfullscreen="true" allow="autoplay; fullscreen"></iframe>
+
+    <!-- Transfers -->
+    <div class="widget" id="transfers-widget">
+      <div class="widget-header">
+        <div class="widget-title">
+          <div class="logo-icon" style="background:#1a5c8a;">TR</div>
+          <div class="widget-label">Transfers</div>
+        </div>
+        <button onclick="loadTransfersData(true)" style="background:none;border:1px solid var(--border);color:var(--muted);padding:0.2rem 0.5rem;border-radius:3px;cursor:pointer;font-size:0.7rem;font-family:inherit;">↻ Refresh</button>
+      </div>
+      <div class="transfers-filter">
+        <input type="text" id="transfers-search" placeholder="Filter by player or team…" oninput="filterTransfers(this.value)">
+      </div>
+      <div class="widget-body" id="transfers-body" style="padding:0;">
+        <div class="loading-state"><div class="loader"></div>Loading transfers…</div>
+      </div>
+    </div>
   </div>
 
 <script>
@@ -2149,35 +2178,7 @@
     });
   })();
 
-  // ── Resizable right panel ──
-  (function() {
-    const handle = document.getElementById('right-resize-handle');
-    const saved = localStorage.getItem('d2_right_panel_width');
-    if (saved) document.body.style.setProperty('--right-panel-width', saved);
-
-    let dragging = false;
-    handle.addEventListener('mousedown', e => {
-      e.preventDefault();
-      dragging = true;
-      handle.classList.add('dragging');
-      document.body.style.cursor = 'col-resize';
-      document.body.style.userSelect = 'none';
-    });
-    document.addEventListener('mousemove', e => {
-      if (!dragging) return;
-      const pct = Math.min(60, Math.max(10, ((window.innerWidth - e.clientX) / window.innerWidth) * 100));
-      document.body.style.setProperty('--right-panel-width', pct + '%');
-    });
-    document.addEventListener('mouseup', () => {
-      if (!dragging) return;
-      dragging = false;
-      handle.classList.remove('dragging');
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      const w = getComputedStyle(document.body).getPropertyValue('--right-panel-width');
-      localStorage.setItem('d2_right_panel_width', w.trim());
-    });
-  })();
+  // Right panel is now 1fr — no separate resize handle needed.
 
   // ── Drag & Drop widgets ──
   (function() {
@@ -2747,30 +2748,23 @@
     });
 
     // Update body layout class
-    document.body.classList.remove('dota2-view', 'all-view', 'custom-view');
+    document.body.classList.remove('dota2-view', 'all-view', 'custom-view', 'rankings-transfers-view');
     document.body.classList.add(view + '-view');
 
-    // Show/hide widgets based on view
-    const dota2Widget = document.getElementById('dota-widget');
-    const standingsWidget = document.getElementById('standings-widget');
-    const financeWidget = document.getElementById('finance-widget');
-    const newsWidget = document.getElementById('news-widget');
-    const rankingsWidget = document.getElementById('rankings-widget');
-    const rightWidgetsContainer = document.querySelector('.all-widgets-right');
+    const rtPanel = document.getElementById('rankings-transfers-panel');
 
-    // Always show Dota 2 view only
-    dota2Widget.style.display = '';
-    rightWidgetsContainer.style.display = 'flex';
-    standingsWidget.style.display = '';
-    financeWidget.style.display = 'none';
-    newsWidget.style.display = 'none';
-    rankingsWidget.style.display = '';
-    renderCurrent();
-
-    // Load rankings data
-    setTimeout(() => {
-      loadRankingsData();
-    }, 100);
+    if (view === 'rankings-transfers') {
+      // Rankings & Transfers tab — full-width panel
+      rtPanel.style.display = '';  // CSS grid handles it via body class
+      setTimeout(() => {
+        loadRankingsData();
+        loadTransfersData();
+      }, 50);
+    } else {
+      // Dota 2 (default) view
+      rtPanel.style.display = 'none';
+      renderCurrent();
+    }
   };
 
   // Widget selector event handlers (custom view)
@@ -2942,6 +2936,97 @@
       });
   }
 
+  // ── Transfers ──
+  let transfersCache = null;
+  let transfersAllRows = [];
+
+  function loadTransfersData(force) {
+    const body = document.getElementById('transfers-body');
+    if (transfersCache && !force) { renderTransfers(transfersCache); return; }
+
+    body.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading transfers…</div>';
+    transfersCache = null;
+
+    const url = 'https://liquipedia.net/dota2/api.php?action=parse&page=Transfers&prop=text&format=json&origin=*';
+    fetch(url)
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(data => {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = data?.parse?.text?.['*'] || '';
+        const rows = [];
+        // Liquipedia transfer tables have class "wikitable"
+        tmp.querySelectorAll('table.wikitable tr').forEach(tr => {
+          const tds = tr.querySelectorAll('td');
+          if (tds.length < 4) return; // skip header rows (th only)
+          // Typical columns: Date | Player | Position | Old Team | New Team | Ref
+          const dateEl  = tds[0];
+          const playerEl = tds[1];
+          const posEl   = tds[2];
+          const fromEl  = tds[3];
+          const toEl    = tds[4];
+          if (!dateEl || !playerEl) return;
+
+          const date   = dateEl.textContent.trim().replace(/\s+/g, ' ');
+          const player = playerEl.textContent.trim().replace(/\s+/g, ' ');
+          const pos    = posEl?.textContent.trim() || '';
+          const from   = fromEl?.textContent.trim().replace(/\s+/g, ' ') || '—';
+          const to     = toEl?.textContent.trim().replace(/\s+/g, ' ') || '—';
+          if (player && player.length > 1) rows.push({ date, player, pos, from, to });
+        });
+
+        if (!rows.length) throw new Error('No transfers parsed');
+        // Most recent first (Liquipedia lists newest at top already)
+        transfersCache = rows;
+        renderTransfers(rows);
+      })
+      .catch(err => {
+        body.innerHTML = `<div class="empty-state" style="padding:1rem;">Could not load transfers.<br><span style="font-size:0.7rem;color:var(--muted);">${err.message}</span></div>`;
+      });
+  }
+
+  function renderTransfers(rows) {
+    transfersAllRows = rows;
+    const body = document.getElementById('transfers-body');
+    const q = (document.getElementById('transfers-search')?.value || '').toLowerCase();
+    const filtered = q ? rows.filter(r =>
+      r.player.toLowerCase().includes(q) ||
+      r.from.toLowerCase().includes(q) ||
+      r.to.toLowerCase().includes(q)
+    ) : rows;
+
+    if (!filtered.length) {
+      body.innerHTML = '<div class="empty-state" style="padding:1rem;">No matching transfers.</div>';
+      return;
+    }
+
+    let html = '<div style="overflow-x:auto;"><table class="transfers-table"><thead><tr>'
+      + '<th class="xfer-date">Date</th>'
+      + '<th>Player</th>'
+      + '<th>From</th>'
+      + '<th></th>'
+      + '<th>To</th>'
+      + '</tr></thead><tbody>';
+    filtered.forEach(r => {
+      html += `<tr>
+        <td class="xfer-date">${r.date}</td>
+        <td class="xfer-player">${escHtml(r.player)}</td>
+        <td class="xfer-from">${escHtml(r.from)}</td>
+        <td class="xfer-arrow">→</td>
+        <td class="xfer-to">${escHtml(r.to)}</td>
+      </tr>`;
+    });
+    html += '</tbody></table></div>';
+    body.innerHTML = html;
+  }
+
+  function filterTransfers(q) {
+    if (transfersAllRows.length) renderTransfers(transfersAllRows);
+  }
+
+  function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
   // Load news data (Aftonbladet)
   function loadNewsData() {
     const body = document.getElementById('news-body');
@@ -2979,9 +3064,15 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.49';
+  const VERSION = '1.0.51';
   const LAST_UPDATE = '2026-04-06';
   const CHANGELOG = [
+    { v: '1.0.50', date: '2026-04-06', notes: [
+      'New "Rankings & Transfers" tab with world rankings + live Liquipedia transfer feed',
+      'Standings now expands across full right column (no more narrow middle panel)',
+      'Stream panel moved below standings in right column',
+      'Layout simplified to 2-column grid'
+    ]},
     { v: '1.0.47', date: '2026-04-06', notes: [
       'Stream priority fixed: gorgc (Twitch) now checked before Kick',
       'Kick streams now verified live via Kick API before showing Watch button'

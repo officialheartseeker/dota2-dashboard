@@ -1615,7 +1615,10 @@
       const parentStr = [...parents].map(h => `parent=${h}`).join('&');
       src = `https://player.twitch.tv/?channel=${channel}&${parentStr}`;
     } else if (type === 'kick') {
-      src = `https://player.kick.com/${channel}`;
+      // Kick blocks iframe embeds via X-Frame-Options: SAMEORIGIN — open in new tab
+      window.open(`https://kick.com/${channel}`, '_blank');
+      if (tournPage) setActiveStandingsTournament(tournPage, tournName);
+      return;
     } else {
       return; // unsupported type
     }
@@ -2938,7 +2941,7 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.44';
+  const VERSION = '1.0.45';
   const LAST_UPDATE = '2026-04-06';
   const CHANGELOG = [
     { v: '1.0.33', date: '2026-04-03', notes: [

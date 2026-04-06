@@ -1383,7 +1383,7 @@
         <div style="padding:0.4rem 0.5rem;border-bottom:1px solid var(--border);background:var(--card);display:flex;gap:0.4rem;flex-wrap:wrap;">
           <button class="region-btn active" onclick="loadPlayerRankings('europe')" id="rbtn-europe">Europe</button>
           <button class="region-btn" onclick="loadPlayerRankings('americas')" id="rbtn-americas">Americas</button>
-          <button class="region-btn" onclick="loadPlayerRankings('se_asia')" id="rbtn-se_asia">SE Asia</button>
+          <button class="region-btn" onclick="loadPlayerRankings('sea')" id="rbtn-sea">SE Asia</button>
           <button class="region-btn" onclick="loadPlayerRankings('china')" id="rbtn-china">China</button>
         </div>
         <div id="player-rankings-list">
@@ -2919,16 +2919,22 @@
     if (tab === 'players') loadPlayerRankings(activePlayerRegion);
   }
 
-  // ── Team Rankings (top 100 via DLTV) ──
+  // ── Team Rankings (DLTV, collapse/expand 10↔100) ──
   let rankingsCache = null;
+  let rankingsExpanded = false;
+
+  function toggleRankingsExpand() {
+    rankingsExpanded = !rankingsExpanded;
+    if (rankingsCache) renderRankings(rankingsCache);
+  }
 
   function renderRankings(rankings) {
     const body = document.getElementById('rankings-body-teams');
-    const top100 = rankings.slice(0, 100);
+    const displayed = rankingsExpanded ? rankings.slice(0, 100) : rankings.slice(0, 10);
     let html = '<table class="rankings-table"><thead><tr>'
       + '<th style="width:2.5rem;">Rank</th><th>Team</th><th style="width:5rem;">Points</th>'
       + '</tr></thead><tbody>';
-    top100.forEach(r => {
+    displayed.forEach(r => {
       const logoHtml = r.logo
         ? `<img src="${r.logo}" referrerpolicy="no-referrer" style="width:16px;height:16px;object-fit:contain;margin-right:0.4rem;vertical-align:middle;flex-shrink:0;">`
         : '';
@@ -2939,7 +2945,13 @@
       </tr>`;
     });
     html += '</tbody></table>';
-    html += `<div style="padding:0.4rem 0.6rem;font-size:0.65rem;color:var(--muted);border-top:1px solid var(--border);">Source: <a href="https://dltv.org/ranking" target="_blank" style="color:var(--accent2);">DLTV.org</a></div>`;
+    const btnStyle = 'width:100%;padding:0.5rem;margin-top:0.4rem;background:var(--surface);border:1px solid var(--border);color:var(--accent2);border-radius:4px;cursor:pointer;font-size:0.72rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;';
+    if (!rankingsExpanded) {
+      html += `<button onclick="toggleRankingsExpand()" style="${btnStyle}">▼ Show top 100</button>`;
+    } else {
+      html += `<button onclick="toggleRankingsExpand()" style="${btnStyle}">▲ Collapse to top 10</button>`;
+    }
+    html += `<div style="padding:0.3rem 0.6rem;font-size:0.65rem;color:var(--muted);">Source: <a href="https://dltv.org/ranking" target="_blank" style="color:var(--accent2);">DLTV.org</a></div>`;
     body.innerHTML = html;
   }
 
@@ -2949,10 +2961,8 @@
 
     body.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading rankings...</div>';
 
-    const proxyFetch = (url) => fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(url))
-      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); });
-
-    proxyFetch('https://dltv.org/ranking')
+    fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://dltv.org/ranking'))
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
       .then(html => {
         const tmp = document.createElement('div');
         tmp.innerHTML = html;
@@ -2974,39 +2984,49 @@
         renderRankings(rankings);
       })
       .catch(() => {
-        // Static fallback top 30 (April 2026)
+        // Static fallback (April 2026) — top 50
         const fallback = [
-          { rank:1,  team:'Tundra Esports', points:1861 }, { rank:2,  team:'Team Yandex',     points:1575 },
-          { rank:3,  team:'Team Liquid',    points:1219 }, { rank:4,  team:'Team Falcons',    points:1033 },
-          { rank:5,  team:'Team Spirit',    points:898  }, { rank:6,  team:'Aurora',          points:754  },
-          { rank:7,  team:'BetBoom Team',   points:751  }, { rank:8,  team:'Xtreme Gaming',   points:703  },
-          { rank:9,  team:'MOUZ',           points:671  }, { rank:10, team:'PARIVISION',      points:600  },
-          { rank:11, team:'Natus Vincere',  points:538  }, { rank:12, team:'Heroic',          points:478  },
-          { rank:13, team:'OG',             points:349  }, { rank:14, team:'GamerLegion',     points:298  },
-          { rank:15, team:'Vici Gaming',    points:284  }, { rank:16, team:'Rekonix',         points:232  },
-          { rank:17, team:'Power Rangers',  points:227  }, { rank:18, team:'paiN Gaming',     points:223  },
-          { rank:19, team:'Execration',     points:186  }, { rank:20, team:'Nigma Galaxy',    points:185  },
-          { rank:21, team:'Virtus.pro',     points:174  }, { rank:22, team:'Team Nemesis',    points:144  },
-          { rank:23, team:'1win Team',      points:120  }, { rank:24, team:'Yakult Brothers', points:119  },
-          { rank:25, team:'Pipsqueak+4',    points:69   }, { rank:26, team:'Team Silk',       points:66   },
-          { rank:27, team:'Zero Tenacity',  points:59   }, { rank:28, team:'PlayTime',        points:55   },
-          { rank:29, team:'Amaru Gaming',   points:34   }, { rank:30, team:'Inner Circle',    points:34   }
+          { rank:1,  team:'Tundra Esports',    points:1861 }, { rank:2,  team:'Team Yandex',      points:1575 },
+          { rank:3,  team:'Team Liquid',        points:1219 }, { rank:4,  team:'Team Falcons',     points:1033 },
+          { rank:5,  team:'Team Spirit',        points:898  }, { rank:6,  team:'Aurora',           points:754  },
+          { rank:7,  team:'BetBoom Team',       points:751  }, { rank:8,  team:'Xtreme Gaming',    points:703  },
+          { rank:9,  team:'MOUZ',               points:671  }, { rank:10, team:'PARIVISION',       points:600  },
+          { rank:11, team:'Natus Vincere',      points:538  }, { rank:12, team:'Heroic',           points:478  },
+          { rank:13, team:'OG',                 points:349  }, { rank:14, team:'GamerLegion',      points:298  },
+          { rank:15, team:'Vici Gaming',        points:284  }, { rank:16, team:'Rekonix',          points:232  },
+          { rank:17, team:'Power Rangers',      points:227  }, { rank:18, team:'paiN Gaming',      points:223  },
+          { rank:19, team:'Execration',         points:186  }, { rank:20, team:'Nigma Galaxy',     points:185  },
+          { rank:21, team:'Virtus.pro',         points:174  }, { rank:22, team:'Team Nemesis',     points:144  },
+          { rank:23, team:'1win Team',          points:120  }, { rank:24, team:'Yakult Brothers',  points:119  },
+          { rank:25, team:'Pipsqueak+4',        points:69   }, { rank:26, team:'Team Silk',        points:66   },
+          { rank:27, team:'Zero Tenacity',      points:59   }, { rank:28, team:'PlayTime',         points:55   },
+          { rank:29, team:'Amaru Gaming',       points:34   }, { rank:30, team:'Inner Circle',     points:34   },
+          { rank:31, team:'Entity',             points:31   }, { rank:32, team:'Team Secret',      points:28   },
+          { rank:33, team:'Gaimin Gladiators',  points:26   }, { rank:34, team:'Azure Ray',        points:24   },
+          { rank:35, team:'Shopify Rebellion',  points:22   }, { rank:36, team:'TSM',              points:20   },
+          { rank:37, team:'Blacklist Int.',     points:18   }, { rank:38, team:'Fnatic',           points:16   },
+          { rank:39, team:'BOOM Esports',       points:15   }, { rank:40, team:'Talon Esports',    points:14   },
+          { rank:41, team:'PSG.LGD',            points:13   }, { rank:42, team:'Royal Never GiveUp',points:12  },
+          { rank:43, team:'iG',                 points:11   }, { rank:44, team:'EHOME',            points:10   },
+          { rank:45, team:'Thunder Awaken',     points:9    }, { rank:46, team:'beastcoast',       points:8    },
+          { rank:47, team:'Alliance',           points:7    }, { rank:48, team:'Liquid',           points:6    },
+          { rank:49, team:'Hokori',             points:5    }, { rank:50, team:'Soniqs',           points:4    },
         ];
         rankingsCache = fallback;
         renderRankings(fallback);
       });
   }
 
-  // ── Player Rankings (Valve in-game leaderboard, top 100 per region) ──
+  // ── Player Rankings (OpenDota leaderboard, no proxy needed) ──
+  // OpenDota API: https://api.opendota.com/api/leaderboards?division={region}
+  // Divisions: europe, americas, sea, china
   let activePlayerRegion = 'europe';
   const playerRankingsCache = {};
 
   function loadPlayerRankings(region) {
     activePlayerRegion = region;
-    // Update region button states
-    ['europe','americas','se_asia','china'].forEach(r => {
-      const btn = document.getElementById('rbtn-' + r);
-      if (btn) btn.classList.toggle('active', r === region);
+    ['europe','americas','sea','china'].forEach(r => {
+      document.getElementById('rbtn-' + r)?.classList.toggle('active', r === region);
     });
 
     const list = document.getElementById('player-rankings-list');
@@ -3014,17 +3034,15 @@
 
     list.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading…</div>';
 
-    // Valve public leaderboard API (no key required)
-    const apiUrl = `https://www.dota2.com/webapi/ILeaderboard/GetDivisionLeaderboard/v0001/?division=${region}&leaderboard=0`;
-    const proxy  = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(apiUrl);
-
-    fetch(proxy)
+    // OpenDota leaderboard API — proper CORS headers, no proxy required
+    fetch(`https://api.opendota.com/api/leaderboards?division=${region}`)
       .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(data => {
         const rows = (data.leaderboard || []).slice(0, 100).map((p, i) => ({
           rank: i + 1,
-          name: p.name || p.profile?.personaname || '—',
-          rating: p.rank_tier || null
+          name: p.name || '—',
+          teamName: p.team_name || '',
+          avatar: p.avatar || ''
         }));
         if (!rows.length) throw new Error('Empty leaderboard');
         playerRankingsCache[region] = rows;
@@ -3037,18 +3055,22 @@
 
   function renderPlayerRankings(rows, region) {
     const list = document.getElementById('player-rankings-list');
-    const regionLabel = { europe: 'Europe', americas: 'Americas', se_asia: 'SE Asia', china: 'China' }[region] || region;
-    let html = `<table class="rankings-table"><thead><tr>`
-      + `<th style="width:2.5rem;">Rank</th><th>Player</th>`
-      + `</tr></thead><tbody>`;
+    const regionLabel = { europe:'Europe', americas:'Americas', sea:'SE Asia', china:'China' }[region] || region;
+    let html = '<table class="rankings-table"><thead><tr>'
+      + '<th style="width:2.5rem;">Rank</th><th>Player</th><th>Team</th>'
+      + '</tr></thead><tbody>';
     rows.forEach(r => {
+      const avatarHtml = r.avatar
+        ? `<img src="${r.avatar}" referrerpolicy="no-referrer" style="width:16px;height:16px;border-radius:50%;object-fit:cover;margin-right:0.4rem;vertical-align:middle;flex-shrink:0;">`
+        : '';
       html += `<tr>
         <td class="rank" style="text-align:center;">#${r.rank}</td>
-        <td class="team-name">${escHtml(r.name)}</td>
+        <td class="team-name" style="display:flex;align-items:center;">${avatarHtml}${escHtml(r.name)}</td>
+        <td style="color:var(--muted);font-size:0.7rem;">${escHtml(r.teamName)}</td>
       </tr>`;
     });
-    html += `</tbody></table>`;
-    html += `<div style="padding:0.4rem 0.6rem;font-size:0.65rem;color:var(--muted);border-top:1px solid var(--border);">Valve leaderboard · ${regionLabel} · Top 100</div>`;
+    html += '</tbody></table>';
+    html += `<div style="padding:0.3rem 0.6rem;font-size:0.65rem;color:var(--muted);">OpenDota · ${regionLabel} · Top 100 Immortal</div>`;
     list.innerHTML = html;
   }
 
@@ -3079,54 +3101,114 @@
     };
 
     tryNext(0)
-      .then(r => r)
-      .then(html => {
-        const tmp = document.createElement('div');
-        tmp.innerHTML = html;
-        const rows = [];
-
-        // Row structure (per cyberscore.live):
-        //  td[0] = player avatar img
-        //  td[1] = player link + real name span
-        //  td[2] = from-team link + status span
-        //  td[3] = arrow "→"
-        //  td[4] = to-team link
-        //  td[5] = transfer type description
-        //  td[6] = date DD.MM.YYYY
-        tmp.querySelectorAll('tr').forEach(tr => {
-          const tds = tr.querySelectorAll('td');
-          if (tds.length < 6) return;
-
-          const playerA  = tds[1]?.querySelector('a[href*="/players/"]');
-          const fromA    = tds[2]?.querySelector('a[href*="/teams/"]');
-          const toA      = tds[4]?.querySelector('a[href*="/teams/"]');
-          const typeText = tds[5]?.textContent?.trim() || '';
-          const dateText = tds[6]?.textContent?.trim() || tds[5]?.textContent?.trim() || '';
-
-          const player = playerA?.textContent?.trim() || tds[1]?.textContent?.trim() || '';
-          const from   = fromA?.textContent?.trim()   || tds[2]?.textContent?.trim() || '—';
-          const to     = toA?.textContent?.trim()     || tds[4]?.textContent?.trim() || '—';
-
-          // Date is DD.MM.YYYY — convert to YYYY-MM-DD for sorting
-          const dateParsed = dateText.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
-          const dateISO = dateParsed ? `${dateParsed[3]}-${dateParsed[2]}-${dateParsed[1]}` : '';
-          const dateDisplay = dateText || dateISO;
-
-          const type = typeText.replace(dateText, '').trim(); // strip date if it bled into type col
-
-          if (player && player.length > 1 && dateDisplay) {
-            rows.push({ date: dateDisplay, dateISO, player, from, to, type });
-          }
-        });
-
-        if (!rows.length) throw new Error('No transfers found — page structure may have changed');
-        // Sort newest first (already newest-first from site, but ensure it)
+      .then(pageHtml => {
+        const rows = parseCyberscoreTransfers(pageHtml);
+        if (!rows.length) throw new Error('parse_failed');
         rows.sort((a, b) => (b.dateISO || b.date).localeCompare(a.dateISO || a.date));
         transfersCache = rows;
         renderTransfers(rows);
       })
+      .catch(() => {
+        // Fallback: Liquipedia transfers page
+        loadTransfersFromLiquipedia(body);
+      });
+  }
+
+  // Parse cyberscore.live HTML — tries multiple DOM strategies
+  function parseCyberscoreTransfers(pageHtml) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = pageHtml;
+    const rows = [];
+    const seen = new Set();
+
+    const addRow = (player, from, to, type, dateText) => {
+      if (!player || player.length < 2) return;
+      const dateMatch = (dateText || '').match(/(\d{2})\.(\d{2})\.(\d{4})/);
+      if (!dateMatch) return;
+      const dateISO = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
+      const dateDisplay = dateMatch[0];
+      const key = player + dateISO;
+      if (seen.has(key)) return;
+      seen.add(key);
+      rows.push({ date: dateDisplay, dateISO, player, from: from || '—', to: to || '—', type: type || '' });
+    };
+
+    // Strategy 1: standard <tr> rows (any count of tds >= 4)
+    tmp.querySelectorAll('tr').forEach(tr => {
+      const tds = [...tr.querySelectorAll('td')];
+      if (tds.length < 4) return;
+      const playerA = tr.querySelector('a[href*="/players/"]');
+      if (!playerA) return;
+      const teamLinks = [...tr.querySelectorAll('a[href*="/teams/"]')];
+      const text = tr.textContent;
+      const dateMatch = text.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+      if (!dateMatch) return;
+      const player = playerA.textContent.trim();
+      const from   = teamLinks[0]?.textContent.trim() || '—';
+      const to     = teamLinks[1]?.textContent.trim() || '—';
+      // transfer type: text minus player/teams/date/arrow
+      let type = text.replace(player,'').replace(from,'').replace(to,'')
+                     .replace(dateMatch[0],'').replace(/→/g,'').replace(/\s+/g,' ').trim()
+                     .replace(/^[-–—]+/,'').trim().substring(0, 60);
+      addRow(player, from, to, type, dateMatch[0]);
+    });
+
+    if (rows.length) return rows;
+
+    // Strategy 2: walk player links and find nearest container with a date
+    tmp.querySelectorAll('a[href*="/en/players/"]').forEach(playerA => {
+      const player = playerA.textContent.trim();
+      let el = playerA.parentElement;
+      for (let depth = 0; depth < 8 && el; depth++) {
+        const text = el.textContent;
+        const dateMatch = text.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+        const teamLinks = [...el.querySelectorAll('a[href*="/en/teams/"]')];
+        if (dateMatch && teamLinks.length >= 1) {
+          const from = teamLinks[0]?.textContent.trim() || '—';
+          const to   = teamLinks[1]?.textContent.trim() || from;
+          let type = text.replace(player,'').replace(from,'').replace(to,'')
+                        .replace(dateMatch[0],'').replace(/→/g,'').replace(/\s+/g,' ').trim()
+                        .substring(0, 60);
+          addRow(player, from, to, type, dateMatch[0]);
+          break;
+        }
+        el = el.parentElement;
+      }
+    });
+
+    return rows;
+  }
+
+  // Liquipedia fallback for transfers
+  function loadTransfersFromLiquipedia(body) {
+    const url = 'https://liquipedia.net/dota2/api.php?action=parse&page=Transfers&prop=text&format=json&origin=*';
+    fetch(url)
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(data => {
+        const tmp = document.createElement('div');
+        tmp.innerHTML = data?.parse?.text?.['*'] || '';
+        const rows = [];
+        tmp.querySelectorAll('table.wikitable tr').forEach(tr => {
+          const tds = tr.querySelectorAll('td');
+          if (tds.length < 4) return;
+          // Columns vary but typically: Date | Player | Pos | Old Team | New Team | Ref
+          const dateText = tds[0]?.textContent.trim();
+          const player   = tds[1]?.textContent.trim().replace(/\s+/g,' ');
+          const from     = tds[tds.length > 4 ? 3 : 2]?.textContent.trim().replace(/\s+/g,' ') || '—';
+          const to       = tds[tds.length > 4 ? 4 : 3]?.textContent.trim().replace(/\s+/g,' ') || '—';
+          if (!player || player.length < 2 || !dateText) return;
+          const dateMatch = dateText.match(/(\d{4})-(\d{2})-(\d{2})/);
+          const dateISO = dateMatch ? dateText.trim() : '';
+          const dateDisplay = dateMatch ? `${dateMatch[3]}.${dateMatch[2]}.${dateMatch[1]}` : dateText;
+          rows.push({ date: dateDisplay, dateISO, player, from, to, type: '' });
+        });
+        if (!rows.length) throw new Error('No Liquipedia transfers found');
+        rows.sort((a, b) => (b.dateISO || '').localeCompare(a.dateISO || ''));
+        transfersCache = rows;
+        renderTransfers(rows);
+      })
       .catch(err => {
-        body.innerHTML = `<div class="empty-state" style="padding:1rem;">Could not load transfers from cyberscore.live.<br><span style="font-size:0.7rem;color:var(--muted);">${err.message}</span></div>`;
+        body.innerHTML = `<div class="empty-state" style="padding:1rem;">Could not load transfers.<br><span style="font-size:0.7rem;color:var(--muted);">cyberscore.live + Liquipedia both failed</span></div>`;
       });
   }
 
@@ -3223,7 +3305,7 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.54';
+  const VERSION = '1.0.55';
   const LAST_UPDATE = '2026-04-06';
   const CHANGELOG = [
     { v: '1.0.53', date: '2026-04-06', notes: [

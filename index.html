@@ -185,38 +185,10 @@
       flex-shrink: 0;
     }
 
-    /* Transfers table */
-    .transfers-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.75rem;
-    }
-    .transfers-table th {
-      background: var(--surface);
-      color: var(--accent2);
-      padding: 0.45rem 0.5rem;
-      text-align: left;
-      font-weight: 600;
-      border-bottom: 1px solid var(--border);
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-      white-space: nowrap;
-    }
-    .transfers-table td {
-      padding: 0.4rem 0.5rem;
-      border-bottom: 1px solid rgba(255,255,255,0.04);
-      color: var(--text);
-      vertical-align: middle;
-    }
-    .transfers-table tr:hover td { background: rgba(232,135,42,0.04); }
-    .transfers-table .xfer-date { color: var(--muted); white-space: nowrap; width: 5.5rem; }
-    .transfers-table .xfer-player { font-weight: 600; color: var(--accent2); white-space: nowrap; }
-    .transfers-table .xfer-from { color: var(--muted); }
-    .transfers-table .xfer-to { color: var(--live); font-weight: 600; }
-    .transfers-table .xfer-arrow { color: var(--muted); padding: 0 0.15rem; }
+    /* ── TRANSFERS ── */
     .transfers-filter {
-      display: flex; gap: 0.5rem; align-items: center;
-      padding: 0.5rem 0.75rem;
+      display: flex;
+      padding: 0.45rem 0.6rem;
       border-bottom: 1px solid var(--border);
       background: var(--card);
     }
@@ -231,28 +203,87 @@
       flex: 1;
     }
     .transfers-filter input:focus { outline: none; border-color: var(--accent2); }
+
     .xfer-date-group {
-      padding: 0.35rem 0.6rem;
-      background: var(--surface);
+      padding: 0.3rem 0.7rem;
+      background: rgba(232,135,42,0.07);
+      border-top: 1px solid var(--border);
       border-bottom: 1px solid var(--border);
+      margin-top: 0.15rem;
     }
+    .xfer-date-group:first-child { margin-top: 0; border-top: none; }
     .xfer-date-header {
-      font-size: 0.68rem;
-      color: var(--accent2);
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.78rem;
       font-weight: 700;
-      letter-spacing: 0.05em;
+      color: var(--accent2);
+      letter-spacing: 0.06em;
       text-transform: uppercase;
     }
-    .xfer-type {
-      font-size: 0.65rem;
+
+    /* Each transfer row: grid — player | from | arrow | to | type-badge */
+    .xfer-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1.2rem 1fr auto;
+      align-items: center;
+      gap: 0 0.4rem;
+      padding: 0.35rem 0.7rem;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.85rem;
+      transition: background 0.1s;
+    }
+    .xfer-row:hover { background: rgba(255,255,255,0.03); }
+
+    .xfer-player {
+      font-weight: 700;
+      color: var(--accent2);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .xfer-from {
       color: var(--muted);
       white-space: nowrap;
-      text-align: right;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-weight: 600;
     }
-    .xfer-type-join  { color: var(--live); }
-    .xfer-type-left  { color: var(--accent); }
-    .xfer-type-loan  { color: var(--accent2); }
-    .xfer-type-coach { color: #a78bfa; }
+    .xfer-arrow {
+      color: var(--muted);
+      text-align: center;
+      font-size: 0.75rem;
+    }
+    .xfer-to {
+      color: var(--live);
+      font-weight: 700;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .xfer-to.xfer-same { color: var(--muted); font-weight: 600; }
+
+    .xfer-type {
+      font-size: 0.62rem;
+      font-family: 'IBM Plex Mono', monospace;
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      white-space: nowrap;
+      background: rgba(255,255,255,0.06);
+      color: var(--muted);
+    }
+    .xfer-type-join  { background: rgba(34,197,94,0.12);  color: var(--live); }
+    .xfer-type-left  { background: rgba(200,57,43,0.12);  color: var(--accent); }
+    .xfer-type-loan  { background: rgba(232,135,42,0.15); color: var(--accent2); }
+    .xfer-type-coach { background: rgba(167,139,250,0.15);color: #a78bfa; }
+
+    .xfer-footer {
+      padding: 0.45rem 0.7rem;
+      font-size: 0.65rem;
+      color: var(--muted);
+      border-top: 1px solid var(--border);
+      font-family: 'IBM Plex Mono', monospace;
+    }
 
     /* ── RESIZE HANDLE (integrated in widget right edge) ── */
     .widget {
@@ -3114,62 +3145,93 @@
       });
   }
 
+  // Extract only the first text node from an element (skips child spans/tags)
+  function firstTextOf(el) {
+    if (!el) return '';
+    for (const node of el.childNodes) {
+      if (node.nodeType === 3) {               // TEXT_NODE
+        const t = node.textContent.trim();
+        if (t) return t;
+      }
+    }
+    // Fallback: return the first child element's first text node
+    for (const child of el.children) {
+      const t = firstTextOf(child);
+      if (t) return t;
+    }
+    return '';
+  }
+
   // Parse cyberscore.live HTML — tries multiple DOM strategies
   function parseCyberscoreTransfers(pageHtml) {
     const tmp = document.createElement('div');
     tmp.innerHTML = pageHtml;
     const rows = [];
     const seen = new Set();
+    // Known skip words (table section headers)
+    const SKIP = new Set(['players','top players','teams','name','player','transfer','date']);
 
     const addRow = (player, from, to, type, dateText) => {
-      if (!player || player.length < 2) return;
+      const pClean = player.trim();
+      if (!pClean || pClean.length < 2) return;
+      if (SKIP.has(pClean.toLowerCase())) return;
       const dateMatch = (dateText || '').match(/(\d{2})\.(\d{2})\.(\d{4})/);
       if (!dateMatch) return;
       const dateISO = `${dateMatch[3]}-${dateMatch[2]}-${dateMatch[1]}`;
-      const dateDisplay = dateMatch[0];
-      const key = player + dateISO;
+      const key = pClean + '|' + dateISO;
       if (seen.has(key)) return;
       seen.add(key);
-      rows.push({ date: dateDisplay, dateISO, player, from: from || '—', to: to || '—', type: type || '' });
+      rows.push({
+        date: dateMatch[0], dateISO,
+        player: pClean,
+        from:   (from  || '—').replace(/\s+/g,' ').trim(),
+        to:     (to    || '—').replace(/\s+/g,' ').trim(),
+        type:   (type  || '').replace(/\s+/g,' ').trim().substring(0, 60)
+      });
     };
 
-    // Strategy 1: standard <tr> rows (any count of tds >= 4)
+    // Strategy 1: <tr> rows — use firstTextOf() so we don't grab tag/status spans
     tmp.querySelectorAll('tr').forEach(tr => {
       const tds = [...tr.querySelectorAll('td')];
       if (tds.length < 4) return;
-      const playerA = tr.querySelector('a[href*="/players/"]');
+      // Player link must have a numeric ID
+      const playerA = tr.querySelector('a[href*="/en/players/"]');
       if (!playerA) return;
-      const teamLinks = [...tr.querySelectorAll('a[href*="/teams/"]')];
-      const text = tr.textContent;
-      const dateMatch = text.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+      if (!/\/players\/\d+/.test(playerA.getAttribute('href') || '')) return;
+
+      const teamLinks = [...tr.querySelectorAll('a[href*="/en/teams/"]')];
+      const rowText   = tr.textContent;
+      const dateMatch = rowText.match(/(\d{2})\.(\d{2})\.(\d{4})/);
       if (!dateMatch) return;
-      const player = playerA.textContent.trim();
-      const from   = teamLinks[0]?.textContent.trim() || '—';
-      const to     = teamLinks[1]?.textContent.trim() || '—';
-      // transfer type: text minus player/teams/date/arrow
-      let type = text.replace(player,'').replace(from,'').replace(to,'')
-                     .replace(dateMatch[0],'').replace(/→/g,'').replace(/\s+/g,' ').trim()
-                     .replace(/^[-–—]+/,'').trim().substring(0, 60);
+
+      const player = firstTextOf(playerA) || playerA.textContent.trim();
+      const from   = firstTextOf(teamLinks[0]) || '—';
+      const to     = firstTextOf(teamLinks[1]) || firstTextOf(teamLinks[0]) || '—';
+
+      // Transfer type: what's left after removing known pieces
+      let typeRaw = rowText;
+      [player, from, to, dateMatch[0]].forEach(s => { typeRaw = typeRaw.replace(s, ''); });
+      const type = typeRaw.replace(/→/g,'').replace(/\s+/g,' ').trim().replace(/^[-–—]+/,'').trim();
+
       addRow(player, from, to, type, dateMatch[0]);
     });
 
     if (rows.length) return rows;
 
-    // Strategy 2: walk player links and find nearest container with a date
+    // Strategy 2: walk up from each player link to find a date-containing container
     tmp.querySelectorAll('a[href*="/en/players/"]').forEach(playerA => {
-      const player = playerA.textContent.trim();
+      if (!/\/players\/\d+/.test(playerA.getAttribute('href') || '')) return;
+      const player = firstTextOf(playerA) || playerA.textContent.trim();
       let el = playerA.parentElement;
-      for (let depth = 0; depth < 8 && el; depth++) {
-        const text = el.textContent;
-        const dateMatch = text.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+      for (let depth = 0; depth < 6 && el; depth++) {
         const teamLinks = [...el.querySelectorAll('a[href*="/en/teams/"]')];
+        const dateMatch = el.textContent.match(/(\d{2})\.(\d{2})\.(\d{4})/);
+        // Limit container: if it has too many player links it's too high up
+        if (el.querySelectorAll('a[href*="/en/players/"]').length > 1) { el = el.parentElement; depth++; continue; }
         if (dateMatch && teamLinks.length >= 1) {
-          const from = teamLinks[0]?.textContent.trim() || '—';
-          const to   = teamLinks[1]?.textContent.trim() || from;
-          let type = text.replace(player,'').replace(from,'').replace(to,'')
-                        .replace(dateMatch[0],'').replace(/→/g,'').replace(/\s+/g,' ').trim()
-                        .substring(0, 60);
-          addRow(player, from, to, type, dateMatch[0]);
+          const from = firstTextOf(teamLinks[0]) || '—';
+          const to   = firstTextOf(teamLinks[1]) || from;
+          addRow(player, from, to, '', dateMatch[0]);
           break;
         }
         el = el.parentElement;
@@ -3200,7 +3262,7 @@
           const dateMatch = dateText.match(/(\d{4})-(\d{2})-(\d{2})/);
           const dateISO = dateMatch ? dateText.trim() : '';
           const dateDisplay = dateMatch ? `${dateMatch[3]}.${dateMatch[2]}.${dateMatch[1]}` : dateText;
-          rows.push({ date: dateDisplay, dateISO, player, from, to, type: '' });
+          rows.push({ date: dateDisplay, dateISO, player, from, to, type: '', source: 'liquipedia' });
         });
         if (!rows.length) throw new Error('No Liquipedia transfers found');
         rows.sort((a, b) => (b.dateISO || '').localeCompare(a.dateISO || ''));
@@ -3231,32 +3293,33 @@
     // Group by date
     const byDate = new Map();
     filtered.forEach(r => {
-      const key = r.date;
-      if (!byDate.has(key)) byDate.set(key, []);
-      byDate.get(key).push(r);
+      if (!byDate.has(r.date)) byDate.set(r.date, []);
+      byDate.get(r.date).push(r);
     });
 
-    let html = '<div style="overflow-x:auto;">';
+    let html = '';
     byDate.forEach((dateRows, date) => {
       html += `<div class="xfer-date-group"><span class="xfer-date-header">${escHtml(date)}</span></div>`;
-      html += '<table class="transfers-table"><tbody>';
       dateRows.forEach(r => {
-        const typeClass = /left|released|retired/i.test(r.type) ? 'xfer-type-left'
-                        : /loan/i.test(r.type) ? 'xfer-type-loan'
+        const isSameTeam = r.from === r.to || r.from === '—' || r.to === '—';
+        const typeClass = /left|released|retired|end of loan/i.test(r.type) ? 'xfer-type-left'
+                        : /loan/i.test(r.type)  ? 'xfer-type-loan'
                         : /coach/i.test(r.type) ? 'xfer-type-coach'
                         : 'xfer-type-join';
-        html += `<tr>
-          <td class="xfer-player">${escHtml(r.player)}</td>
-          <td class="xfer-from">${escHtml(r.from)}</td>
-          <td class="xfer-arrow">→</td>
-          <td class="xfer-to">${escHtml(r.to)}</td>
-          <td class="xfer-type ${typeClass}">${escHtml(r.type)}</td>
-        </tr>`;
+        html += `<div class="xfer-row">
+          <span class="xfer-player">${escHtml(r.player)}</span>
+          <span class="xfer-from">${escHtml(r.from)}</span>
+          <span class="xfer-arrow">→</span>
+          <span class="xfer-to${isSameTeam ? ' xfer-same' : ''}">${escHtml(r.to)}</span>
+          ${r.type ? `<span class="xfer-type ${typeClass}">${escHtml(r.type)}</span>` : ''}
+        </div>`;
       });
-      html += '</tbody></table>';
     });
-    html += `<div style="padding:0.6rem 0.75rem;font-size:0.68rem;color:var(--muted);border-top:1px solid var(--border);">Source: <a href="https://cyberscore.live/en/transfers/" target="_blank" style="color:var(--accent2);">cyberscore.live</a> · Page 1 of results (most recent)</div>`;
-    html += '</div>';
+
+    const src = rows[0]?.source === 'liquipedia'
+      ? `<a href="https://liquipedia.net/dota2/Transfers" target="_blank" style="color:var(--accent2);">Liquipedia</a>`
+      : `<a href="https://cyberscore.live/en/transfers/" target="_blank" style="color:var(--accent2);">cyberscore.live</a>`;
+    html += `<div class="xfer-footer">Source: ${src} · ${filtered.length} transfers</div>`;
     body.innerHTML = html;
   }
 
@@ -3305,7 +3368,7 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.55';
+  const VERSION = '1.0.56';
   const LAST_UPDATE = '2026-04-06';
   const CHANGELOG = [
     { v: '1.0.53', date: '2026-04-06', notes: [

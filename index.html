@@ -1505,8 +1505,8 @@
         });
       }
 
-      // Pick best available: Twitch > Kick > gorgc fallback (no YouTube)
-      stream = stream || kickStream || gorgcStream || null;
+      // Pick best available: Twitch EN > gorgc (Twitch fallback) > Kick (no YouTube)
+      stream = stream || gorgcStream || kickStream || null;
 
       const now = new Date();
       const matchDate = dateISO ? new Date(dateISO) : null;
@@ -1626,6 +1626,38 @@
     panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
     if (tournPage) setActiveStandingsTournament(tournPage, tournName);
+  }
+
+  // ── Kick live-check ──
+  // After render, verify each Kick stream button is actually live via Kick API.
+  // Buttons that belong to channels not currently live are hidden.
+  async function checkKickStreams() {
+    const buttons = document.querySelectorAll('.stream-btn[data-kick-channel]');
+    if (!buttons.length) return;
+
+    const checked = new Map(); // slug → is_live bool
+
+    await Promise.allSettled([...buttons].map(async btn => {
+      const slug = btn.getAttribute('data-kick-channel');
+      if (!slug) return;
+
+      if (!checked.has(slug)) {
+        try {
+          const url = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://kick.com/api/v2/channels/' + slug);
+          const res = await fetch(url, { signal: AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined });
+          if (!res.ok) { checked.set(slug, false); return; }
+          const data = await res.json();
+          // livestream is null when offline, object when live
+          checked.set(slug, !!(data && data.livestream));
+        } catch {
+          checked.set(slug, false);
+        }
+      }
+
+      if (checked.get(slug) === false) {
+        btn.style.display = 'none';
+      }
+    }));
   }
 
   function setActiveStandingsTournament(tournPage, tournName) {
@@ -1875,7 +1907,7 @@
       (!soon && timeStr ? `<span class="time-tag">${timeStr}</span>` : '') +
       (m.bestOf ? `<span class="bo-tag">${m.bestOf}</span>` : '') +
       (m.tourn ? (m.tournPage ? `<a class="tourn-tag" href="https://liquipedia.net/dota2/${m.tournPage}" target="_blank" onclick="event.stopPropagation()" title="${m.tourn}">${m.tourn}</a>` : `<span class="tourn-tag">${m.tourn}</span>`) : '') +
-      (m.stream && m.isLive ? `<button class="stream-btn" onclick="openStream('${m.stream}', '${m.t1.replace(/'/g, "\\'")} vs ${m.t2.replace(/'/g, "\\'")}', event, '${(m.tournPage||'').replace(/'/g,"\\'")}', '${(m.tourn||'').replace(/'/g,"\\'")}')">&#9654; Watch</button>` : '');
+      (m.stream && m.isLive ? `<button class="stream-btn"${m.stream.startsWith('kick:') ? ` data-kick-channel="${m.stream.split(':')[1]}"` : ''} onclick="openStream('${m.stream}', '${m.t1.replace(/'/g, "\\'")} vs ${m.t2.replace(/'/g, "\\'")}', event, '${(m.tournPage||'').replace(/'/g,"\\'")}', '${(m.tourn||'').replace(/'/g,"\\'")}')">&#9654; Watch</button>` : '');
 
     const rowClass = m.isLive ? 'is-live' : m.isCompleted ? 'is-completed' : 'is-upcoming';
     const favClass = hasFav ? ' is-fav' : '';
@@ -1952,6 +1984,7 @@
 
   function renderCurrent() {
     document.getElementById('match-body').innerHTML = renderAll(allMatches);
+    checkKickStreams();
   }
 
   // ── Countdown ticker ──
@@ -2938,9 +2971,13 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.46';
+  const VERSION = '1.0.48';
   const LAST_UPDATE = '2026-04-06';
   const CHANGELOG = [
+    { v: '1.0.47', date: '2026-04-06', notes: [
+      'Stream priority fixed: gorgc (Twitch) now checked before Kick',
+      'Kick streams now verified live via Kick API before showing Watch button'
+    ]},
     { v: '1.0.33', date: '2026-04-03', notes: [
       'Clicking a match or pressing Watch now auto-switches Standings to that tournament',
       'Added EN only toggle to show/hide non-English Twitch & YouTube streams',

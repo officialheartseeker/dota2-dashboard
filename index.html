@@ -1004,6 +1004,49 @@
       letter-spacing: 0.06em;
     }
 
+    /* Group stage match results */
+    .group-matches {
+      margin: 0 0 0.6rem;
+      border-top: 1px solid var(--border);
+    }
+    .group-match-row {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      padding: 0.22rem 0.5rem;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.78rem;
+    }
+    .group-match-row:hover { background: rgba(255,255,255,0.03); }
+    .gm-team {
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+    }
+    .gm-team img { width: 14px; height: 14px; object-fit: contain; flex-shrink: 0; }
+    .gm-team span { overflow: hidden; text-overflow: ellipsis; color: var(--text); }
+    .gm-team-right { flex-direction: row-reverse; text-align: right; }
+    .gm-team.gm-winner span { color: var(--text); font-weight: 700; }
+    .gm-team.gm-loser span { color: var(--muted); }
+    .gm-score {
+      display: flex;
+      align-items: center;
+      gap: 0.15rem;
+      font-size: 0.82rem;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      padding: 0 0.5rem;
+      flex-shrink: 0;
+      color: var(--muted);
+    }
+    .gm-score-win { color: var(--text); }
+    .gm-score-sep { color: var(--border); }
+
     /* Standings tabs */
     .standings-tabs {
       display: flex;
@@ -1610,17 +1653,23 @@
       }
 
       // Extract stream links — scan ALL streams in the card
-      // Priority: Twitch (English) → Kick → YouTube → Twitch (gorgc fallback if listed)
+      // Priority: Twitch (English) → gorgc (Twitch) → Twitch (non-EN) → Kick
       let stream = null;
       let kickStream = null;
       let gorgcStream = null;
+      let nonENStream = null;
       const enOnly = localStorage.getItem('d2_english_only') !== 'false';
 
+      // Only explicitly English/international channels — Russian channels excluded intentionally
       const englishChannels = new Set([
-        'esl_dota2', 'esl_dota2_den', 'esl_dota2_fra', 'esl_dota2_rus', 'esl_dota2_ptbr', 'esl_dota2_tur',
+        'esl_dota2', 'esl_dota2_den', 'esl_dota2_fra', 'esl_dota2_ptbr', 'esl_dota2_tur',
         'dotamajor', 'dota2ti', 'epicenter_en', 'starladder_en', 'pgl_dota2', 'beyondthesummit',
-        'dotastarladder_en', 'dreamleague', 'perfectworld', 'ruhub', 'maincast', 'bsl_dota2',
+        'dotastarladder_en', 'dreamleague', 'perfectworld', 'bsl_dota2',
         'nodwin_gaming', 'aspeota2', 'btsindonesia', 'bts_dota2', 'bts_sa', 'bts_jp'
+      ]);
+      // Channels that are NOT English (Russian, CIS, etc.) — never treated as EN
+      const nonEnglishChannels = new Set([
+        'ruhub', 'maincast', 'esl_dota2_rus', 'cybersport', 'weplay_esports'
       ]);
       const channelMap = {
         'ESL_Dota_2': 'esl_dota2', 'ESL_Dota2': 'esl_dota2',
@@ -1634,8 +1683,14 @@
         const raw = tm[1];
         const channel = (channelMap[raw] || raw.toLowerCase()).toLowerCase();
         if (channel === 'gorgc') { gorgcStream = 'twitch:gorgc'; return; }
-        if (!stream && (!enOnly || englishChannels.has(channel) || /en|english|main|main_cast|broadcast|esl|pgl|epic|dreamleague/.test(channel))) {
+        const isEN = englishChannels.has(channel) || (
+          !nonEnglishChannels.has(channel) &&
+          /(?:_en\d*$|english|broadcast|esl|pgl|epic|dreamleague)/i.test(channel)
+        );
+        if (isEN && !stream) {
           stream = 'twitch:' + channel;
+        } else if (!isEN && !nonENStream) {
+          nonENStream = 'twitch:' + channel;
         }
       });
 
@@ -1656,8 +1711,8 @@
         });
       }
 
-      // Pick best available: Twitch EN > gorgc (Twitch fallback) > Kick (no YouTube)
-      stream = stream || gorgcStream || kickStream || null;
+      // Priority: Twitch EN → gorgc (Twitch) → non-EN Twitch (if enOnly off) → Kick
+      stream = stream || gorgcStream || (!enOnly ? nonENStream : null) || kickStream || null;
 
       const now = new Date();
       const matchDate = dateISO ? new Date(dateISO) : null;
@@ -2583,12 +2638,137 @@
         });
 
         if (teams.length) {
-          groups.push({ name: groupName || ('Group ' + String.fromCharCode(65 + groups.length)), teams });
+          groups.push({ name: groupName || ('Group ' + String.fromCharCode(65 + groups.length)), teams, matches: [] });
         }
       });
     }
 
+    // Parse match results from matchlists and associate with groups
+    const matchesByGroup = parseGroupMatchlists(tmp);
+    matchesByGroup.forEach(mg => {
+      // Find a group with matching name (case-insensitive suffix match, e.g. "A" matches "Group A")
+      let g = groups.find(g => g.name.toLowerCase() === mg.name.toLowerCase());
+      if (!g) g = groups.find(g => {
+        const n = g.name.toLowerCase().replace(/^group\s*/i, '');
+        const m = mg.name.toLowerCase().replace(/^group\s*/i, '');
+        return n === m || g.name.toLowerCase().includes(mg.name.toLowerCase()) || mg.name.toLowerCase().includes(g.name.toLowerCase());
+      });
+      if (g) {
+        g.matches = mg.matches;
+      } else if (mg.matches.length) {
+        // No matching standing group — attach to first group or add standalone
+        if (groups.length === 1) {
+          groups[0].matches = (groups[0].matches || []).concat(mg.matches);
+        } else {
+          groups.push({ name: mg.name, teams: [], matches: mg.matches });
+        }
+      }
+    });
+
     return groups;
+  }
+
+  // Parse match results from .matchlist / brkts-match elements on a group stage page
+  function parseGroupMatchlists(tmp) {
+    const result = [];
+
+    // Helper: find nearest preceding group heading for an element
+    function nearestGroupHeading(el) {
+      let cur = el;
+      while (cur) {
+        let prev = cur.previousElementSibling;
+        while (prev) {
+          if (/^H[2-4]$/i.test(prev.tagName)) {
+            const t = prev.textContent.replace(/\[.*?\]/g, '').trim();
+            if (/group/i.test(t) || /^[A-Z]$/.test(t)) return t;
+          }
+          // Also check headings inside the element (e.g. collapsible divs)
+          const inner = prev.querySelector('h2,h3,h4');
+          if (inner) {
+            const t = inner.textContent.replace(/\[.*?\]/g, '').trim();
+            if (/group/i.test(t)) return t;
+          }
+          prev = prev.previousElementSibling;
+        }
+        cur = cur.parentElement;
+        if (!cur || cur === tmp) break;
+      }
+      return 'Group Stage';
+    }
+
+    // Helper: get team name + logo from an opponent block
+    function parseOpponent(el) {
+      const nameEl = el.querySelector('.team-template-text a, .name a, .brkts-opponent-entry .name a, a.block-team');
+      const name = nameEl?.textContent?.trim() || el.textContent?.trim().split('\n')[0].trim() || '';
+      const imgEl = el.querySelector('.team-template-image-icon img, .team-template-image img');
+      const src = imgEl?.getAttribute('src') || '';
+      const logo = src.startsWith('http') ? src : (src.startsWith('//') ? 'https:' + src : (src ? 'https://liquipedia.net' + src : ''));
+      return { name: name.substring(0, 40), logo };
+    }
+
+    // Strategy 1: Modern brkts-match format
+    const brktMatches = tmp.querySelectorAll('.brkts-match');
+    if (brktMatches.length) {
+      const grouped = {};
+      brktMatches.forEach(match => {
+        const heading = nearestGroupHeading(match);
+        if (!grouped[heading]) grouped[heading] = [];
+        const opponents = match.querySelectorAll('.brkts-opponent');
+        if (opponents.length < 2) return;
+        const t1 = parseOpponent(opponents[0]);
+        const t2 = parseOpponent(opponents[1]);
+        // Score: look for score cells
+        const scoreEls = match.querySelectorAll('.brkts-opponent-score-bold, .brkts-opponent-score');
+        let s1 = '', s2 = '';
+        if (scoreEls.length >= 2) {
+          s1 = scoreEls[0].textContent.trim();
+          s2 = scoreEls[1].textContent.trim();
+        }
+        if (!t1.name && !t2.name) return;
+        // Determine winner
+        const w = (s1 > s2) ? 1 : (s2 > s1) ? 2 : 0;
+        grouped[heading].push({ t1, t2, s1, s2, winner: w });
+      });
+      Object.entries(grouped).forEach(([name, matches]) => {
+        if (matches.length) result.push({ name, matches });
+      });
+      if (result.length) return result;
+    }
+
+    // Strategy 2: Classic matchlist format
+    const matchlists = tmp.querySelectorAll('.matchlist');
+    if (matchlists.length) {
+      matchlists.forEach(ml => {
+        const heading = nearestGroupHeading(ml);
+        const matches = [];
+        ml.querySelectorAll('.matchlistrow').forEach(row => {
+          // Team names
+          const leftEl = row.querySelector('.team-left .team-template-text a, .team-left a');
+          const rightEl = row.querySelector('.team-right .team-template-text a, .team-right a');
+          const t1name = leftEl?.textContent?.trim() || '';
+          const t2name = rightEl?.textContent?.trim() || '';
+          if (!t1name && !t2name) return;
+          const leftLogoEl = row.querySelector('.team-left .team-template-image-icon img');
+          const rightLogoEl = row.querySelector('.team-right .team-template-image-icon img');
+          const mkLogo = el => { const s = el?.getAttribute('src') || ''; return s.startsWith('http') ? s : (s.startsWith('//') ? 'https:' + s : (s ? 'https://liquipedia.net' + s : '')); };
+          // Score
+          const vsEl = row.querySelector('.vs span, .match-score, .vs-score, .vs abbr');
+          const vsText = vsEl?.textContent?.trim() || '';
+          const scoreParts = vsText.split(/[:\-]/);
+          const s1 = scoreParts[0]?.trim() || '';
+          const s2 = scoreParts[1]?.trim() || '';
+          const w = (s1 > s2) ? 1 : (s2 > s1) ? 2 : 0;
+          matches.push({ t1: { name: t1name, logo: mkLogo(leftLogoEl) }, t2: { name: t2name, logo: mkLogo(rightLogoEl) }, s1, s2, winner: w });
+        });
+        if (matches.length) {
+          const existing = result.find(r => r.name === heading);
+          if (existing) existing.matches.push(...matches);
+          else result.push({ name: heading, matches });
+        }
+      });
+    }
+
+    return result;
   }
 
   function parsePrizepool(tmp) {
@@ -2693,6 +2873,31 @@
           </tr>`;
         });
         html += '</tbody></table>';
+
+        // Match results for this group
+        const gMatches = g.matches || [];
+        if (gMatches.length) {
+          html += `<div class="group-matches">`;
+          gMatches.forEach(m => {
+            const w1 = m.winner === 1, w2 = m.winner === 2;
+            html += `<div class="group-match-row">
+              <div class="gm-team gm-team-left${w1 ? ' gm-winner' : (w2 ? ' gm-loser' : '')}">
+                ${m.t1.logo ? `<img src="${m.t1.logo}" referrerpolicy="no-referrer" alt="">` : ''}
+                <span>${escHtml(m.t1.name || 'TBD')}</span>
+              </div>
+              <div class="gm-score">
+                <span class="${w1 ? 'gm-score-win' : ''}">${m.s1 !== '' ? m.s1 : '–'}</span>
+                <span class="gm-score-sep">:</span>
+                <span class="${w2 ? 'gm-score-win' : ''}">${m.s2 !== '' ? m.s2 : '–'}</span>
+              </div>
+              <div class="gm-team gm-team-right${w2 ? ' gm-winner' : (w1 ? ' gm-loser' : '')}">
+                <span>${escHtml(m.t2.name || 'TBD')}</span>
+                ${m.t2.logo ? `<img src="${m.t2.logo}" referrerpolicy="no-referrer" alt="">` : ''}
+              </div>
+            </div>`;
+          });
+          html += `</div>`;
+        }
       });
     } else if (activeStandingsTab === 'bracket' && hasBracket) {
       // Bracket sub-tabs
@@ -3071,22 +3276,43 @@
 
     list.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading…</div>';
 
-    // OpenDota leaderboard API — proper CORS headers, no proxy required
-    fetch(`https://api.opendota.com/api/leaderboards?division=${region}`)
+    // Valve official leaderboard — map internal region keys to Valve division names
+    const valveDivision = { europe: 'europe', americas: 'americas', sea: 'se_asia', china: 'china' }[region] || region;
+    const valveUrl = `https://www.dota2.com/webapi/ILeaderboard/GetDivisionLeaderboard/v0001/?division=${valveDivision}&leaderboard=0`;
+    const proxied = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(valveUrl);
+
+    fetch(proxied)
       .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(data => {
-        const rows = (data.leaderboard || []).slice(0, 100).map((p, i) => ({
-          rank: i + 1,
+        const board = data.leaderboard || data.result?.leaderboard || [];
+        const rows = board.slice(0, 100).map((p, i) => ({
+          rank: p.rank || (i + 1),
           name: p.name || '—',
-          teamName: p.team_name || '',
-          avatar: p.avatar || ''
+          teamName: '',
+          avatar: ''
         }));
         if (!rows.length) throw new Error('Empty leaderboard');
         playerRankingsCache[region] = rows;
         renderPlayerRankings(rows, region);
       })
-      .catch(err => {
-        list.innerHTML = `<div class="empty-state" style="padding:1rem;">Could not load player rankings.<br><span style="font-size:0.68rem;color:var(--muted);">${err.message}</span></div>`;
+      .catch(() => {
+        // Fallback to OpenDota if Valve API unreachable
+        fetch(`https://api.opendota.com/api/leaderboards?division=${region}`)
+          .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+          .then(data => {
+            const rows = (data.leaderboard || []).slice(0, 100).map((p, i) => ({
+              rank: i + 1,
+              name: p.name || '—',
+              teamName: p.team_name || '',
+              avatar: p.avatar || ''
+            }));
+            if (!rows.length) throw new Error('Empty leaderboard');
+            playerRankingsCache[region] = rows;
+            renderPlayerRankings(rows, region);
+          })
+          .catch(err => {
+            list.innerHTML = `<div class="empty-state" style="padding:1rem;">Could not load player rankings.<br><span style="font-size:0.68rem;color:var(--muted);">${err.message}</span></div>`;
+          });
       });
   }
 
@@ -3107,7 +3333,7 @@
       </tr>`;
     });
     html += '</tbody></table>';
-    html += `<div style="padding:0.3rem 0.6rem;font-size:0.65rem;color:var(--muted);">OpenDota · ${regionLabel} · Top 100 Immortal</div>`;
+    html += `<div style="padding:0.3rem 0.6rem;font-size:0.65rem;color:var(--muted);">Valve · ${regionLabel} · Top 100 Immortal</div>`;
     list.innerHTML = html;
   }
 
@@ -3553,9 +3779,14 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.59';
-  const LAST_UPDATE = '2026-04-06';
+  const VERSION = '1.0.61';
+  const LAST_UPDATE = '2026-04-08';
   const CHANGELOG = [
+    { v: '1.0.60', date: '2026-04-08', notes: [
+      'Stream priority: gorgc (Twitch) now comes before Russian streams (ruhub, maincast, esl_dota2_rus removed from English list)',
+      'Player rankings now fetched from official Valve leaderboard (dota2.com), OpenDota as fallback',
+      'Group stage: match results (who beat who, score) now shown below each group standings table'
+    ]},
     { v: '1.0.53', date: '2026-04-06', notes: [
       'Team rankings expanded to top 100 (was top 10 collapsed)',
       'New Players sub-tab in Rankings: Valve in-game leaderboard top 100, per region (EU/Americas/SEA/CN)',

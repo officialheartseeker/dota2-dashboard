@@ -513,6 +513,10 @@
       0%,100% { filter: brightness(1); }
       50% { filter: brightness(1.3) drop-shadow(0 0 5px rgba(200,57,43,.6)); }
     }
+    @keyframes pulse {
+      0%,100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(0.75); }
+    }
     .widget-label {
       font-family: 'Rajdhani', sans-serif;
       font-size: 1.1rem; font-weight: 700;
@@ -1331,6 +1335,12 @@
   <!-- WIDGET: Main header with nav -->
   <div class="main-header">
     <div id="version-badge-anchor" style="position:absolute;top:0.6rem;left:0.8rem;"></div>
+    <a id="gorgc-live-badge" href="https://www.twitch.tv/gorgc" target="_blank"
+       style="display:none;position:absolute;top:0.6rem;right:0.8rem;align-items:center;gap:0.35rem;background:rgba(145,71,255,0.15);border:1px solid rgba(145,71,255,0.4);border-radius:4px;padding:0.2rem 0.55rem;font-family:'Rajdhani',sans-serif;font-size:0.72rem;font-weight:700;color:#b388ff;text-decoration:none;cursor:pointer;z-index:10;"
+       title="gorgc is live on Twitch">
+      <span style="width:7px;height:7px;border-radius:50%;background:#b388ff;display:inline-block;animation:pulse 1.4s infinite;"></span>
+      gorgc LIVE
+    </a>
     <div class="main-logo">
       Ultimate <span>Dashboard</span>
     </div>
@@ -1503,6 +1513,28 @@
   let notificationsEnabled = false;
   let countdownInterval = null;
   let rosterCache = {};
+
+  // ── gorgc live status (checked independently since he's rarely on Liquipedia) ──
+  let gorgcIsLive = false;
+  function checkGorgcLive() {
+    fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://decapi.me/twitch/uptime/gorgc'))
+      .then(r => r.text())
+      .then(t => {
+        const wasLive = gorgcIsLive;
+        gorgcIsLive = t && !t.toLowerCase().includes('offline') && !t.includes('error');
+        if (gorgcIsLive !== wasLive) rerenderMatches(); // update Watch buttons
+        const badge = document.getElementById('gorgc-live-badge');
+        if (badge) badge.style.display = gorgcIsLive ? 'inline-flex' : 'none';
+      })
+      .catch(() => {});
+  }
+  checkGorgcLive();
+  setInterval(checkGorgcLive, 4 * 60 * 1000); // re-check every 4 min
+
+  function rerenderMatches() {
+    const body = document.getElementById('match-body');
+    if (body && allMatches.length) body.innerHTML = renderAll(allMatches);
+  }
 
   function saveDismissed() {
     sessionStorage.setItem('d2_dismissed', JSON.stringify([...dismissed]));
@@ -1883,6 +1915,10 @@
       opt.text = tournName || tournPage;
       standingsSelect.appendChild(opt);
     }
+    // Auto-select bracket tab when match/tournament is in a playoff phase
+    const isPlayoffPhase = /playoff|bracket|upper|lower|quarter|semi|grand.?final/i.test(tournName || tournPage);
+    if (isPlayoffPhase) activeStandingsTab = 'bracket';
+
     if (standingsSelect.value === tournPage) return; // already active
     standingsSelect.value = tournPage;
     fetchStandings(tournPage, tournName || opt.text);
@@ -2120,7 +2156,12 @@
       (!soon && timeStr ? `<span class="time-tag">${timeStr}</span>` : '') +
       (m.bestOf ? `<span class="bo-tag">${m.bestOf}</span>` : '') +
       (m.tourn ? (m.tournPage ? `<a class="tourn-tag" href="https://liquipedia.net/dota2/${m.tournPage}" target="_blank" onclick="event.stopPropagation()" title="${m.tourn}">${m.tourn}</a>` : `<span class="tourn-tag">${m.tourn}</span>`) : '') +
-      (m.stream && m.isLive ? `<button class="stream-btn"${m.stream.startsWith('kick:') ? ` data-kick-channel="${m.stream.split(':')[1]}"` : ''} onclick="openStream('${m.stream}', '${m.t1.replace(/'/g, "\\'")} vs ${m.t2.replace(/'/g, "\\'")}', event, '${(m.tournPage||'').replace(/'/g,"\\'")}', '${(m.tourn||'').replace(/'/g,"\\'")}')">&#9654; Watch</button>` : '');
+      (() => {
+        const watchStream = m.isLive ? (m.stream || (gorgcIsLive ? 'twitch:gorgc' : null)) : null;
+        if (!watchStream) return '';
+        const kickAttr = watchStream.startsWith('kick:') ? ` data-kick-channel="${watchStream.split(':')[1]}"` : '';
+        return `<button class="stream-btn"${kickAttr} onclick="openStream('${watchStream}', '${m.t1.replace(/'/g, "\\'")} vs ${m.t2.replace(/'/g, "\\'")}', event, '${(m.tournPage||'').replace(/'/g,"\\'")}', '${(m.tourn||'').replace(/'/g,"\\'")}')">&#9654; Watch</button>`;
+      })();
 
     const rowClass = m.isLive ? 'is-live' : m.isCompleted ? 'is-completed' : 'is-upcoming';
     const favClass = hasFav ? ' is-fav' : '';
@@ -3796,9 +3837,14 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.64';
+  const VERSION = '1.0.65';
   const LAST_UPDATE = '2026-04-08';
   const CHANGELOG = [
+    { v: '1.0.64', date: '2026-04-08', notes: [
+      'gorgc live status now checked independently (decapi.me) — Watch button appears for all live matches when gorgc is streaming, even if not listed on Liquipedia',
+      'Header shows pulsing "gorgc LIVE" badge with direct Twitch link when he is live',
+      'Standings auto-switches to Bracket tab when opening a match in a Playoffs phase',
+    ]},
     { v: '1.0.63', date: '2026-04-08', notes: [
       'Stream priority corrected: EN Twitch → EN Kick → gorgc → non-EN Twitch → non-EN Kick',
       'Standings now correctly strips /Playoffs, /Group_Stage etc. from tournament URLs before fetching subpages — fixes wrong bracket/group data for tournaments where match links directly to a subpage'

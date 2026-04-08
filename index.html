@@ -1653,11 +1653,12 @@
       }
 
       // Extract stream links — scan ALL streams in the card
-      // Priority: Twitch (English) → gorgc (Twitch) → Twitch (non-EN) → Kick
-      let stream = null;
-      let kickStream = null;
+      // Priority: gorgc → Twitch EN → Kick EN → Twitch non-EN → Kick non-EN
+      let enTwitchStream = null;
       let gorgcStream = null;
       let nonENStream = null;
+      let enKickStream = null;
+      let nonENKickStream = null;
       const enOnly = localStorage.getItem('d2_english_only') !== 'false';
 
       // Only explicitly English/international channels — Russian channels excluded intentionally
@@ -1687,8 +1688,8 @@
           !nonEnglishChannels.has(channel) &&
           /(?:_en\d*$|english|broadcast|esl|pgl|epic|dreamleague)/i.test(channel)
         );
-        if (isEN && !stream) {
-          stream = 'twitch:' + channel;
+        if (isEN && !enTwitchStream) {
+          enTwitchStream = 'twitch:' + channel;
         } else if (!isEN && !nonENStream) {
           nonENStream = 'twitch:' + channel;
         }
@@ -1701,18 +1702,24 @@
         'epl_dota_en2': 'epldota_en2',
         'esl_dota_en':  'esldota_en',
       };
-      if (!kickStream) {
-        card.querySelectorAll('a[href*="Special:Stream/kick"]').forEach(el => {
-          if (kickStream) return;
-          const km = (el.getAttribute('href') || '').match(/Stream\/kick\/([^"&?\/]+)/);
-          if (!km) return;
-          const raw = km[1].toLowerCase();
-          kickStream = 'kick:' + (kickChannelMap[raw] || raw);
-        });
-      }
+      card.querySelectorAll('a[href*="Special:Stream/kick"]').forEach(el => {
+        const km = (el.getAttribute('href') || '').match(/Stream\/kick\/([^"&?\/]+)/);
+        if (!km) return;
+        const raw = km[1].toLowerCase();
+        const slug = kickChannelMap[raw] || raw;
+        // Treat as EN if slug contains _en or is a known EN broadcaster
+        const isEN = /_en\d*$/.test(slug) || /(?:english|esl|pgl|dreamleague|epldota_en|esldota_en)/i.test(slug);
+        if (isEN && !enKickStream) enKickStream = 'kick:' + slug;
+        else if (!isEN && !nonENKickStream) nonENKickStream = 'kick:' + slug;
+      });
 
-      // Priority: Twitch EN → gorgc (Twitch) → non-EN Twitch (if enOnly off) → Kick
-      stream = stream || gorgcStream || (!enOnly ? nonENStream : null) || kickStream || null;
+      // Priority: gorgc → EN Twitch → EN Kick → non-EN Twitch → non-EN Kick
+      const stream = gorgcStream
+        || enTwitchStream
+        || enKickStream
+        || (!enOnly ? nonENStream : null)
+        || (!enOnly ? nonENKickStream : null)
+        || null;
 
       const now = new Date();
       const matchDate = dateISO ? new Date(dateISO) : null;
@@ -3779,10 +3786,15 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.61';
+  const VERSION = '1.0.63';
   const LAST_UPDATE = '2026-04-08';
   const CHANGELOG = [
-    { v: '1.0.60', date: '2026-04-08', notes: [
+    { v: '1.0.62', date: '2026-04-08', notes: [
+      'gorgc stream is now highest priority — shows before any official EN stream',
+      'English Kick streams now prioritised over non-English Twitch/Kick streams',
+      'Kick split into EN/non-EN: EN Kick sits between EN Twitch and non-EN Twitch'
+    ]},
+    { v: '1.0.61', date: '2026-04-08', notes: [
       'Stream priority: gorgc (Twitch) now comes before Russian streams (ruhub, maincast, esl_dota2_rus removed from English list)',
       'Player rankings now fetched from official Valve leaderboard (dota2.com), OpenDota as fallback',
       'Group stage: match results (who beat who, score) now shown below each group standings table'

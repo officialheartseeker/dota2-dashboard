@@ -1713,10 +1713,10 @@
         else if (!isEN && !nonENKickStream) nonENKickStream = 'kick:' + slug;
       });
 
-      // Priority: gorgc → EN Twitch → EN Kick → non-EN Twitch → non-EN Kick
-      const stream = gorgcStream
-        || enTwitchStream
+      // Priority: EN Twitch → EN Kick → gorgc → non-EN Twitch → non-EN Kick
+      const stream = enTwitchStream
         || enKickStream
+        || gorgcStream
         || (!enOnly ? nonENStream : null)
         || (!enOnly ? nonENKickStream : null)
         || null;
@@ -2457,12 +2457,21 @@
 
     standingsBody.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading standings...</div>';
 
+    // Normalize: strip known subpage suffixes so we always fetch from the base tournament path.
+    // Match cards sometimes link directly to /Playoffs or /Group_Stage, which would cause
+    // incorrect nested fetches like /Playoffs/Group_Stage or /Playoffs/Playoffs.
+    const SUBPAGE_SUFFIXES = ['/Playoffs', '/Group_Stage', '/Play-In', '/Swiss_Stage', '/Qualifier', '/Regional_Qualifier', '/Upper_Bracket', '/Lower_Bracket'];
+    let basePage = tournPage;
+    for (const s of SUBPAGE_SUFFIXES) {
+      if (basePage.endsWith(s)) { basePage = basePage.slice(0, -s.length); break; }
+    }
+
     // Fetch all relevant subpages in parallel
-    const mainP     = liquipediaXhr(tournPage).catch(() => null);
-    const groupP    = liquipediaXhr(tournPage + '/Group_Stage').catch(() => null);
-    const playinP   = liquipediaXhr(tournPage + '/Play-In').catch(() => null);
-    const swissP    = liquipediaXhr(tournPage + '/Swiss_Stage').catch(() => null);
-    const playoffsP = liquipediaXhr(tournPage + '/Playoffs').catch(() => null);
+    const mainP     = liquipediaXhr(basePage).catch(() => null);
+    const groupP    = liquipediaXhr(basePage + '/Group_Stage').catch(() => null);
+    const playinP   = liquipediaXhr(basePage + '/Play-In').catch(() => null);
+    const swissP    = liquipediaXhr(basePage + '/Swiss_Stage').catch(() => null);
+    const playoffsP = liquipediaXhr(basePage + '/Playoffs').catch(() => null);
 
     Promise.all([mainP, groupP, playinP, swissP, playoffsP]).then(([mainTmp, groupTmp, playinTmp, swissTmp, playoffsTmp]) => {
       const data = { groups: [], playoffs: [], bracket: [] };
@@ -2503,6 +2512,7 @@
       }
 
       standingsCache[tournPage] = data;
+      if (basePage !== tournPage) standingsCache[basePage] = data;
       renderStandingsFull(data, tournName);
     }).catch(() => {
       standingsBody.innerHTML = '<div class="empty-state">Error loading standings</div>';
@@ -3786,9 +3796,13 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.63';
+  const VERSION = '1.0.64';
   const LAST_UPDATE = '2026-04-08';
   const CHANGELOG = [
+    { v: '1.0.63', date: '2026-04-08', notes: [
+      'Stream priority corrected: EN Twitch → EN Kick → gorgc → non-EN Twitch → non-EN Kick',
+      'Standings now correctly strips /Playoffs, /Group_Stage etc. from tournament URLs before fetching subpages — fixes wrong bracket/group data for tournaments where match links directly to a subpage'
+    ]},
     { v: '1.0.62', date: '2026-04-08', notes: [
       'gorgc stream is now highest priority — shows before any official EN stream',
       'English Kick streams now prioritised over non-English Twitch/Kick streams',

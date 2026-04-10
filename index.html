@@ -3373,9 +3373,8 @@
       });
   }
 
-  // ── Player Rankings (OpenDota leaderboard, no proxy needed) ──
-  // OpenDota API: https://api.opendota.com/api/leaderboards?division={region}
-  // Divisions: europe, americas, sea, china
+  // ── Player Rankings (Valve official leaderboard) ──
+  // Divisions: europe, americas, se_asia, china (Valve naming)
   let activePlayerRegion = 'europe';
   const playerRankingsCache = {};
 
@@ -3390,17 +3389,42 @@
 
     list.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading…</div>';
 
-    // OpenDota leaderboard — reliable CORS, includes avatars & team info
-    fetch(`https://api.opendota.com/api/leaderboards?division=${region}`)
-      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-      .then(data => {
-        const rows = (data.leaderboard || []).slice(0, 100).map((p, i) => ({
-          rank: i + 1,
+    // Valve uses 'se_asia' but our buttons use 'sea'
+    const division = region === 'sea' ? 'se_asia' : region;
+    const valveUrl = `https://www.dota2.com/webapi/ILeaderboard/GetDivisionLeaderboard/v0001/?division=${division}&leaderboard=0`;
+
+    // Try multiple CORS proxies in sequence
+    const proxies = [
+      u => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+      u => `https://api.allorigins.win/get?url=${encodeURIComponent(u)}`,  // returns {contents:"..."}
+      u => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}`,
+    ];
+
+    const tryProxy = (idx) => {
+      if (idx >= proxies.length) return Promise.reject(new Error('All proxies failed'));
+      return fetch(proxies[idx](valveUrl), { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined })
+        .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); })
+        .then(text => {
+          // allorigins /get wraps in {contents:"..."}
+          let json;
+          try { json = JSON.parse(text); } catch { throw new Error('Invalid JSON'); }
+          // unwrap allorigins /get wrapper
+          if (json.contents) { try { json = JSON.parse(json.contents); } catch {} }
+          const board = json.leaderboard || [];
+          if (!board.length) throw new Error('Empty');
+          return board;
+        })
+        .catch(() => tryProxy(idx + 1));
+    };
+
+    tryProxy(0)
+      .then(board => {
+        const rows = board.slice(0, 100).map(p => ({
+          rank: p.rank,
           name: p.name || '—',
-          teamName: p.team_name || '',
-          avatar: p.avatar || ''
+          teamTag: p.team_tag || '',
+          country: p.country || ''
         }));
-        if (!rows.length) throw new Error('Empty leaderboard');
         playerRankingsCache[region] = rows;
         renderPlayerRankings(rows, region);
       })
@@ -3416,17 +3440,17 @@
       + '<th style="width:2.5rem;">Rank</th><th>Player</th><th>Team</th>'
       + '</tr></thead><tbody>';
     rows.forEach(r => {
-      const avatarHtml = r.avatar
-        ? `<img src="${r.avatar}" referrerpolicy="no-referrer" style="width:16px;height:16px;border-radius:50%;object-fit:cover;margin-right:0.4rem;vertical-align:middle;flex-shrink:0;">`
+      const flagHtml = r.country
+        ? `<img src="https://flagcdn.com/16x12/${r.country.toLowerCase()}.png" referrerpolicy="no-referrer" style="width:16px;height:12px;object-fit:cover;margin-right:0.4rem;vertical-align:middle;flex-shrink:0;border-radius:1px;" title="${r.country.toUpperCase()}">`
         : '';
       html += `<tr>
         <td class="rank" style="text-align:center;">#${r.rank}</td>
-        <td class="team-name" style="display:flex;align-items:center;">${avatarHtml}${escHtml(r.name)}</td>
-        <td style="color:var(--muted);font-size:0.7rem;">${escHtml(r.teamName)}</td>
+        <td class="team-name" style="display:flex;align-items:center;">${flagHtml}${escHtml(r.name)}</td>
+        <td style="color:var(--muted);font-size:0.7rem;">${escHtml(r.teamTag)}</td>
       </tr>`;
     });
     html += '</tbody></table>';
-    html += `<div style="padding:0.3rem 0.6rem;font-size:0.65rem;color:var(--muted);">OpenDota · ${regionLabel} · Top 100 Immortal</div>`;
+    html += `<div style="padding:0.3rem 0.6rem;font-size:0.65rem;color:var(--muted);">Valve · ${regionLabel} · Top 100 Immortal</div>`;
     list.innerHTML = html;
   }
 
@@ -3872,9 +3896,14 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.66';
+  const VERSION = '1.0.67';
   const LAST_UPDATE = '2026-04-10';
   const CHANGELOG = [
+    { v: '1.0.66', date: '2026-04-10', notes: [
+      'Player rankings now use Valve official leaderboard (dota2.com) with country flags',
+      'Multi-proxy fallback chain for Valve API (allorigins → allorigins/get → codetabs)',
+      'Team tag shown instead of full team name (matches Valve data format)',
+    ]},
     { v: '1.0.65', date: '2026-04-10', notes: [
       'Bracket parser now handles matchlist format (NarodCast/smaller tournaments that don\'t use brkts-bracket)',
       'Player rankings switched back to OpenDota — Valve API was returning 404 via proxy',

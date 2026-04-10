@@ -1514,24 +1514,56 @@
   let countdownInterval = null;
   let rosterCache = {};
 
-  // ── gorgc live status (checked independently since he's rarely on Liquipedia) ──
-  // decapi.me has Access-Control-Allow-Origin: * — call directly, no proxy needed
+  // ── gorgc live status + stream title ──
+  // decapi.me has Access-Control-Allow-Origin: * — no proxy needed
   let gorgcIsLive = false;
+  let gorgcStreamTitle = ''; // e.g. "Team Liquid vs HEROIC | PREMIER SERIES"
+
   function checkGorgcLive() {
     fetch('https://decapi.me/twitch/uptime/gorgc', { cache: 'no-store' })
       .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
       .then(t => {
         const wasLive = gorgcIsLive;
-        // Offline returns "gorgc is offline"; online returns uptime like "1 hour, 12 minutes"
         gorgcIsLive = !!t && !t.toLowerCase().includes('offline') && !t.toLowerCase().includes('error');
         const badge = document.getElementById('gorgc-live-badge');
         if (badge) badge.style.display = gorgcIsLive ? 'inline-flex' : 'none';
-        if (gorgcIsLive !== wasLive) rerenderMatches();
+        if (gorgcIsLive) {
+          // Also fetch stream title to match against team names
+          fetch('https://decapi.me/twitch/title/gorgc', { cache: 'no-store' })
+            .then(r => r.text())
+            .then(title => {
+              gorgcStreamTitle = title || '';
+              if (gorgcIsLive !== wasLive || title) rerenderMatches();
+            })
+            .catch(() => { if (gorgcIsLive !== wasLive) rerenderMatches(); });
+        } else {
+          gorgcStreamTitle = '';
+          if (gorgcIsLive !== wasLive) rerenderMatches();
+        }
       })
       .catch(() => {});
   }
+
+  // Returns true if gorgc is live AND his stream title mentions t1 or t2
+  function gorgcMatchesTeams(t1, t2) {
+    if (!gorgcIsLive) return false;
+    if (!gorgcStreamTitle) return true; // title unknown — show button anyway
+    const title = gorgcStreamTitle.toLowerCase();
+    const n1 = t1.toLowerCase().split(' ')[0]; // first word of team name (e.g. "team" → skip, "liquid")
+    const n2 = t2.toLowerCase().split(' ')[0];
+    // Use full name first, then first meaningful word (skip short words like "team")
+    const check = (name) => {
+      const full = name.toLowerCase();
+      if (full.length >= 4 && title.includes(full)) return true;
+      // Try individual words, skip generic ones
+      const skip = new Set(['team','esports','gaming','club','the','vs','and']);
+      return name.toLowerCase().split(/\s+/).some(w => w.length >= 4 && !skip.has(w) && title.includes(w));
+    };
+    return check(t1) || check(t2);
+  }
+
   checkGorgcLive();
-  setInterval(checkGorgcLive, 3 * 60 * 1000); // re-check every 3 min
+  setInterval(checkGorgcLive, 3 * 60 * 1000);
 
   function rerenderMatches() {
     const body = document.getElementById('match-body');
@@ -2171,7 +2203,7 @@
         if (!m.isLive) return '';
         // Build stream buttons: listed streams + gorgc if he's live and not already listed
         const btns = [...(m.streams || [])];
-        if (gorgcIsLive && !btns.find(s => s.key === 'twitch:gorgc')) {
+        if (gorgcMatchesTeams(m.t1, m.t2) && !btns.find(s => s.key === 'twitch:gorgc')) {
           btns.push({ key: 'twitch:gorgc', label: 'gorgc' });
         }
         if (!btns.length) return '';
@@ -3918,7 +3950,7 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.71';
+  const VERSION = '1.0.72';
   const LAST_UPDATE = '2026-04-10';
   const CHANGELOG = [
     { v: '1.0.70', date: '2026-04-10', notes: [

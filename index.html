@@ -1745,9 +1745,10 @@
         else if (!isEN && !nonENKickStream) nonENKickStream = 'kick:' + slug;
       });
 
-      // Priority: EN Twitch → EN Kick → gorgc → non-EN Twitch → non-EN Kick
-      const stream = enTwitchStream
-        || enKickStream
+      // enStream = best English-only stream (EN Twitch or EN Kick)
+      // stream   = full priority including gorgc + non-EN fallbacks
+      const enStream = enTwitchStream || enKickStream || null;
+      const stream = enStream
         || gorgcStream
         || (!enOnly ? nonENStream : null)
         || (!enOnly ? nonENKickStream : null)
@@ -1783,7 +1784,7 @@
       if (seen.has(key)) return;
       seen.add(key);
 
-      matches.push({ t1, t2, s1, s2, dateISO, tourn, tournPage, stream, bestOf, logo1, logo2, isLive, isCompleted, isUpcoming });
+      matches.push({ t1, t2, s1, s2, dateISO, tourn, tournPage, stream, enStream, bestOf, logo1, logo2, isLive, isCompleted, isUpcoming });
     });
 
     return matches;
@@ -2157,7 +2158,9 @@
       (m.bestOf ? `<span class="bo-tag">${m.bestOf}</span>` : '') +
       (m.tourn ? (m.tournPage ? `<a class="tourn-tag" href="https://liquipedia.net/dota2/${m.tournPage}" target="_blank" onclick="event.stopPropagation()" title="${m.tourn}">${m.tourn}</a>` : `<span class="tourn-tag">${m.tourn}</span>`) : '') +
       (() => {
-        const watchStream = m.isLive ? (m.stream || (gorgcIsLive ? 'twitch:gorgc' : null)) : null;
+        if (!m.isLive) return '';
+        // Priority: EN stream → gorgc (if live) → any stream
+        const watchStream = m.enStream || (gorgcIsLive ? 'twitch:gorgc' : null) || m.stream || null;
         if (!watchStream) return '';
         const kickAttr = watchStream.startsWith('kick:') ? ` data-kick-channel="${watchStream.split(':')[1]}"` : '';
         return `<button class="stream-btn"${kickAttr} onclick="openStream('${watchStream}', '${m.t1.replace(/'/g, "\\'")} vs ${m.t2.replace(/'/g, "\\'")}', event, '${(m.tournPage||'').replace(/'/g,"\\'")}', '${(m.tourn||'').replace(/'/g,"\\'")}')">&#9654; Watch</button>`;
@@ -3896,9 +3899,12 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.67';
+  const VERSION = '1.0.68';
   const LAST_UPDATE = '2026-04-10';
   const CHANGELOG = [
+    { v: '1.0.67', date: '2026-04-10', notes: [
+      'Fixed: Russian streams no longer override gorgc — Watch button now uses EN stream first, then gorgc if he is live, then falls back to any listed stream'
+    ]},
     { v: '1.0.66', date: '2026-04-10', notes: [
       'Player rankings now use Valve official leaderboard (dota2.com) with country flags',
       'Multi-proxy fallback chain for Valve API (allorigins → allorigins/get → codetabs)',

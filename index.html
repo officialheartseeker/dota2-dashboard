@@ -2161,8 +2161,9 @@
       (m.tourn ? (m.tournPage ? `<a class="tourn-tag" href="https://liquipedia.net/dota2/${m.tournPage}" target="_blank" onclick="event.stopPropagation()" title="${m.tourn}">${m.tourn}</a>` : `<span class="tourn-tag">${m.tourn}</span>`) : '') +
       (() => {
         if (!m.isLive) return '';
-        // Priority: EN stream → gorgc (if live) → any stream
-        const watchStream = m.enStream || (gorgcIsLive ? 'twitch:gorgc' : null) || m.stream || null;
+        // Only use streams actually listed on Liquipedia for this match.
+        // gorgc header badge lets user navigate to him manually.
+        const watchStream = m.stream || null;
         if (!watchStream) return '';
         const kickAttr = watchStream.startsWith('kick:') ? ` data-kick-channel="${watchStream.split(':')[1]}"` : '';
         return `<button class="stream-btn"${kickAttr} onclick="openStream('${watchStream}', '${m.t1.replace(/'/g, "\\'")} vs ${m.t2.replace(/'/g, "\\'")}', event, '${(m.tournPage||'').replace(/'/g,"\\'")}', '${(m.tourn||'').replace(/'/g,"\\'")}')">&#9654; Watch</button>`;
@@ -3901,7 +3902,7 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.69';
+  const VERSION = '1.0.70';
   const LAST_UPDATE = '2026-04-10';
   const CHANGELOG = [
     { v: '1.0.68', date: '2026-04-10', notes: [

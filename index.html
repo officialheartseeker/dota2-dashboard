@@ -1515,21 +1515,23 @@
   let rosterCache = {};
 
   // ── gorgc live status (checked independently since he's rarely on Liquipedia) ──
+  // decapi.me has Access-Control-Allow-Origin: * — call directly, no proxy needed
   let gorgcIsLive = false;
   function checkGorgcLive() {
-    fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent('https://decapi.me/twitch/uptime/gorgc'))
-      .then(r => r.text())
+    fetch('https://decapi.me/twitch/uptime/gorgc', { cache: 'no-store' })
+      .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
       .then(t => {
         const wasLive = gorgcIsLive;
-        gorgcIsLive = t && !t.toLowerCase().includes('offline') && !t.includes('error');
-        if (gorgcIsLive !== wasLive) rerenderMatches(); // update Watch buttons
+        // Offline returns "gorgc is offline"; online returns uptime like "1 hour, 12 minutes"
+        gorgcIsLive = !!t && !t.toLowerCase().includes('offline') && !t.toLowerCase().includes('error');
         const badge = document.getElementById('gorgc-live-badge');
         if (badge) badge.style.display = gorgcIsLive ? 'inline-flex' : 'none';
+        if (gorgcIsLive !== wasLive) rerenderMatches();
       })
       .catch(() => {});
   }
   checkGorgcLive();
-  setInterval(checkGorgcLive, 4 * 60 * 1000); // re-check every 4 min
+  setInterval(checkGorgcLive, 3 * 60 * 1000); // re-check every 3 min
 
   function rerenderMatches() {
     const body = document.getElementById('match-body');
@@ -3899,9 +3901,12 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.68';
+  const VERSION = '1.0.69';
   const LAST_UPDATE = '2026-04-10';
   const CHANGELOG = [
+    { v: '1.0.68', date: '2026-04-10', notes: [
+      'Fixed gorgc live check: now calls decapi.me directly (has CORS) — no proxy needed, no more 522 timeouts'
+    ]},
     { v: '1.0.67', date: '2026-04-10', notes: [
       'Fixed: Russian streams no longer override gorgc — Watch button now uses EN stream first, then gorgc if he is live, then falls back to any listed stream'
     ]},

@@ -2560,66 +2560,122 @@
     });
   }
 
+  // Helper: find the nearest preceding heading for any element in `root`
+  function findNearestHeading(root, el) {
+    let cur = el;
+    while (cur && cur !== root) {
+      let prev = cur.previousElementSibling;
+      while (prev) {
+        if (/^H[2-4]$/i.test(prev.tagName)) {
+          return prev.textContent.replace(/\[.*?\]/g, '').trim();
+        }
+        // Check for heading inside a preceding wrapper div
+        const inner = prev.querySelector('h2,h3,h4');
+        if (inner) return inner.textContent.replace(/\[.*?\]/g, '').trim();
+        prev = prev.previousElementSibling;
+      }
+      cur = cur.parentElement;
+    }
+    return '';
+  }
+
+  // Helper: parse match rows from a .matchlist element (returns bracket-style entries)
+  function parseMatchlistAsBracketRound(ml) {
+    const matches = [];
+    const mkLogo = el => { const s = el?.getAttribute('src') || ''; return s.startsWith('http') ? s : (s.startsWith('//') ? 'https:' + s : (s ? 'https://liquipedia.net' + s : '')); };
+
+    ml.querySelectorAll('.matchlistrow').forEach(row => {
+      // Skip header rows
+      if (row.querySelector('th')) return;
+
+      const leftEl  = row.querySelector('.team-left .team-template-text a, .team-left a[href*="/dota2/"]');
+      const rightEl = row.querySelector('.team-right .team-template-text a, .team-right a[href*="/dota2/"]');
+
+      // Fallback: any link inside team-left/right
+      const leftName  = leftEl?.textContent?.trim()  || row.querySelector('.team-left')?.textContent?.trim().split('\n')[0].trim()  || '';
+      const rightName = rightEl?.textContent?.trim() || row.querySelector('.team-right')?.textContent?.trim().split('\n')[0].trim() || '';
+      if (!leftName && !rightName) return;
+
+      const leftLogoEl  = row.querySelector('.team-left .team-template-image-icon img, .team-left img');
+      const rightLogoEl = row.querySelector('.team-right .team-template-image-icon img, .team-right img');
+
+      // Score: look in .vs, .score, .matchlistscore
+      const vsEl = row.querySelector('.vs span, .matchlistscore, .vs-score, .score');
+      const vsText = vsEl?.textContent?.trim() || '';
+      const sp = vsText.replace(/[^0-9:\-]/g, '').split(/[:\-]/);
+      const s1 = sp[0]?.trim() || '';
+      const s2 = sp[1]?.trim() || '';
+      const n1 = parseInt(s1), n2 = parseInt(s2);
+
+      matches.push({
+        t1: { team: leftName.substring(0, 50),  score: s1, won: !isNaN(n1) && !isNaN(n2) && n1 > n2, logo: mkLogo(leftLogoEl) },
+        t2: { team: rightName.substring(0, 50), score: s2, won: !isNaN(n1) && !isNaN(n2) && n2 > n1, logo: mkLogo(rightLogoEl) }
+      });
+    });
+    return matches;
+  }
+
   function parseBracket(tmp) {
     const brackets = { upper: [], lower: [], grand: [] };
 
+    // Strategy 1: brkts-bracket (modern Liquipedia format)
     const wrapper = tmp.querySelector('.brkts-bracket');
-    if (!wrapper) return brackets;
+    if (wrapper) {
+      const parseEntry = (entry) => {
+        const teamEl = entry.querySelector('.name.hidden-xs, .name');
+        const team = entry.getAttribute('aria-label') || teamEl?.textContent?.trim() || 'TBD';
+        const scoreEl = entry.querySelector('.brkts-opponent-score-inner');
+        const score = scoreEl?.textContent?.trim() || '';
+        const won = entry.querySelector('.brkts-opponent-win') !== null || entry.classList.contains('brkts-opponent-win') || (scoreEl && scoreEl.querySelector('b'));
+        const logoEl = entry.querySelector('.team-template-darkmode img') || entry.querySelector('.team-template-image-icon img');
+        const src = logoEl?.getAttribute('src') || '';
+        const logo = src.startsWith('http') ? src : (src.startsWith('//') ? 'https:' + src : (src ? 'https://liquipedia.net' + src : ''));
+        return { team, score, won, logo };
+      };
 
-    const parseEntry = (entry) => {
-      const teamEl = entry.querySelector('.name.hidden-xs, .name');
-      const team = entry.getAttribute('aria-label') || teamEl?.textContent?.trim() || 'TBD';
-      const scoreEl = entry.querySelector('.brkts-opponent-score-inner');
-      const score = scoreEl?.textContent?.trim() || '';
-      const won = entry.querySelector('.brkts-opponent-win') !== null || entry.classList.contains('brkts-opponent-win') || (scoreEl && scoreEl.querySelector('b'));
-      const logoEl = entry.querySelector('.team-template-darkmode img') || entry.querySelector('.team-template-image-icon img');
-      const src = logoEl?.getAttribute('src') || '';
-      const logo = src.startsWith('http') ? src : (src.startsWith('//') ? 'https:' + src : (src ? 'https://liquipedia.net' + src : ''));
-      return { team, score, won, logo };
-    };
+      const headerDivs = [...wrapper.querySelectorAll('.brkts-header-div')];
+      const allRoundNames = headerDivs.map(div => {
+        const firstOpt = div.querySelector('.brkts-header-option');
+        return firstOpt?.textContent?.trim() || '';
+      }).filter(n => n);
+      const roundCenters = [...wrapper.querySelectorAll('.brkts-round-center')];
 
-    // Actual structure: headers contain all round names, bodies contain all round-centers
-    // Get ALL headers from all brkts-round-header elements
-    const headerDivs = [...wrapper.querySelectorAll('.brkts-header-div')];
-    const allRoundNames = headerDivs.map(div => {
-      const firstOpt = div.querySelector('.brkts-header-option');
-      return firstOpt?.textContent?.trim() || '';
-    }).filter(n => n);
-
-    // Get ALL round-centers (should be 1 per round name)
-    const roundCenters = [...wrapper.querySelectorAll('.brkts-round-center')];
-
-    // Match them by index
-    allRoundNames.forEach((name, idx) => {
-      const center = roundCenters[idx];
-      if (!center || !name) return;
-
-      // Determine bracket type
-      let bt = 'upper';
-      if (name.toLowerCase().includes('grand')) bt = 'grand';
-      else if (name.toLowerCase().includes('lower') || /^lb/i.test(name)) bt = 'lower';
-
-      // Get matches from this specific round-center
-      const matches = [];
-      const matches_in_center = center.querySelectorAll(':scope .brkts-match');
-      matches_in_center.forEach(matchEl => {
-        // Skip if inside a popup
-        if (matchEl.closest('.brkts-popup')) return;
-
-        // Find opponent entries directly under this match (not in popup)
-        const entries = [];
-        matchEl.querySelectorAll('.brkts-opponent-entry').forEach(e => {
-          if (!e.closest('.brkts-popup')) entries.push(e);
+      allRoundNames.forEach((name, idx) => {
+        const center = roundCenters[idx];
+        if (!center || !name) return;
+        let bt = 'upper';
+        if (name.toLowerCase().includes('grand')) bt = 'grand';
+        else if (name.toLowerCase().includes('lower') || /^lb/i.test(name)) bt = 'lower';
+        const matches = [];
+        center.querySelectorAll(':scope .brkts-match').forEach(matchEl => {
+          if (matchEl.closest('.brkts-popup')) return;
+          const entries = [];
+          matchEl.querySelectorAll('.brkts-opponent-entry').forEach(e => { if (!e.closest('.brkts-popup')) entries.push(e); });
+          if (entries.length >= 2) matches.push({ t1: parseEntry(entries[0]), t2: parseEntry(entries[1]) });
         });
-
-        if (entries.length >= 2) {
-          matches.push({ t1: parseEntry(entries[0]), t2: parseEntry(entries[1]) });
-        }
+        if (matches.length) brackets[bt].push({ name, matches });
       });
 
-      if (matches.length) {
-        brackets[bt].push({ name, matches });
-      }
+      if (brackets.upper.length || brackets.lower.length || brackets.grand.length) return brackets;
+    }
+
+    // Strategy 2: matchlist format (classic / smaller tournaments like NarodCast PREMIER SERIES)
+    // Walk all matchlists, classify by nearest preceding heading
+    tmp.querySelectorAll('.matchlist').forEach(ml => {
+      const heading = findNearestHeading(tmp, ml);
+      if (!heading) return;
+      const hLow = heading.toLowerCase();
+
+      // Skip group stage sections
+      if (/\bgroup\b|\bplay.?in\b|\bswiss\b/i.test(hLow)) return;
+
+      // Classify bracket type from heading
+      let bt = 'upper';
+      if (/lower|loser|decider|consolat/i.test(hLow)) bt = 'lower';
+      else if (/grand.?final|grand final|3rd.?place|third.?place/i.test(hLow)) bt = 'grand';
+
+      const matches = parseMatchlistAsBracketRound(ml);
+      if (matches.length) brackets[bt].push({ name: heading, matches });
     });
 
     return brackets;
@@ -3334,43 +3390,22 @@
 
     list.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading…</div>';
 
-    // Valve official leaderboard — map internal region keys to Valve division names
-    const valveDivision = { europe: 'europe', americas: 'americas', sea: 'se_asia', china: 'china' }[region] || region;
-    const valveUrl = `https://www.dota2.com/webapi/ILeaderboard/GetDivisionLeaderboard/v0001/?division=${valveDivision}&leaderboard=0`;
-    const proxied = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(valveUrl);
-
-    fetch(proxied)
+    // OpenDota leaderboard — reliable CORS, includes avatars & team info
+    fetch(`https://api.opendota.com/api/leaderboards?division=${region}`)
       .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(data => {
-        const board = data.leaderboard || data.result?.leaderboard || [];
-        const rows = board.slice(0, 100).map((p, i) => ({
-          rank: p.rank || (i + 1),
+        const rows = (data.leaderboard || []).slice(0, 100).map((p, i) => ({
+          rank: i + 1,
           name: p.name || '—',
-          teamName: '',
-          avatar: ''
+          teamName: p.team_name || '',
+          avatar: p.avatar || ''
         }));
         if (!rows.length) throw new Error('Empty leaderboard');
         playerRankingsCache[region] = rows;
         renderPlayerRankings(rows, region);
       })
-      .catch(() => {
-        // Fallback to OpenDota if Valve API unreachable
-        fetch(`https://api.opendota.com/api/leaderboards?division=${region}`)
-          .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
-          .then(data => {
-            const rows = (data.leaderboard || []).slice(0, 100).map((p, i) => ({
-              rank: i + 1,
-              name: p.name || '—',
-              teamName: p.team_name || '',
-              avatar: p.avatar || ''
-            }));
-            if (!rows.length) throw new Error('Empty leaderboard');
-            playerRankingsCache[region] = rows;
-            renderPlayerRankings(rows, region);
-          })
-          .catch(err => {
-            list.innerHTML = `<div class="empty-state" style="padding:1rem;">Could not load player rankings.<br><span style="font-size:0.68rem;color:var(--muted);">${err.message}</span></div>`;
-          });
+      .catch(err => {
+        list.innerHTML = `<div class="empty-state" style="padding:1rem;">Could not load player rankings.<br><span style="font-size:0.68rem;color:var(--muted);">${err.message}</span></div>`;
       });
   }
 
@@ -3391,7 +3426,7 @@
       </tr>`;
     });
     html += '</tbody></table>';
-    html += `<div style="padding:0.3rem 0.6rem;font-size:0.65rem;color:var(--muted);">Valve · ${regionLabel} · Top 100 Immortal</div>`;
+    html += `<div style="padding:0.3rem 0.6rem;font-size:0.65rem;color:var(--muted);">OpenDota · ${regionLabel} · Top 100 Immortal</div>`;
     list.innerHTML = html;
   }
 
@@ -3837,9 +3872,14 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.65';
-  const LAST_UPDATE = '2026-04-08';
+  const VERSION = '1.0.66';
+  const LAST_UPDATE = '2026-04-10';
   const CHANGELOG = [
+    { v: '1.0.65', date: '2026-04-10', notes: [
+      'Bracket parser now handles matchlist format (NarodCast/smaller tournaments that don\'t use brkts-bracket)',
+      'Player rankings switched back to OpenDota — Valve API was returning 404 via proxy',
+      'Bracket tab now shows correctly for tournaments using classic matchlist HTML',
+    ]},
     { v: '1.0.64', date: '2026-04-08', notes: [
       'gorgc live status now checked independently (decapi.me) — Watch button appears for all live matches when gorgc is streaming, even if not listed on Liquipedia',
       'Header shows pulsing "gorgc LIVE" badge with direct Twitch link when he is live',

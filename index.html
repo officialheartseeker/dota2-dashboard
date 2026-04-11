@@ -180,6 +180,142 @@
       display: none !important;
     }
 
+    /* Calendar + Patch Notes full-width panels */
+    #calendar-panel, #patchnotes-panel {
+      display: none;
+      grid-column: 1 / -1;
+      grid-row: 2;
+    }
+    body.calendar-view #calendar-panel,
+    body.patchnotes-view #patchnotes-panel { display: block; }
+    body.calendar-view #dota-widget,
+    body.calendar-view .all-widgets-right,
+    body.patchnotes-view #dota-widget,
+    body.patchnotes-view .all-widgets-right { display: none !important; }
+
+    /* ── Calendar styles ── */
+    .cal-filters {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      padding: 0.6rem 0.8rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .cal-filter-btn {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 4px;
+      padding: 0.2rem 0.6rem;
+      font-size: 0.72rem;
+      font-family: 'Rajdhani', sans-serif;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .cal-filter-btn.active, .cal-filter-btn:hover {
+      border-color: var(--accent2);
+      color: var(--accent2);
+    }
+    .cal-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 0.7rem;
+      padding: 0.8rem;
+    }
+    .cal-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.7rem 0.8rem;
+      transition: border-color 0.15s;
+    }
+    .cal-card:hover { border-color: var(--accent2); }
+    .cal-card-name {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 0.9rem;
+      color: var(--text);
+      margin-bottom: 0.35rem;
+      line-height: 1.2;
+    }
+    .cal-card-name a { color: inherit; text-decoration: none; }
+    .cal-card-name a:hover { color: var(--accent2); }
+    .cal-card-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem 0.6rem;
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-family: 'IBM Plex Mono', monospace;
+    }
+    .cal-tier-s    { color: #ffd700; }
+    .cal-tier-a    { color: #c084fc; }
+    .cal-tier-b    { color: #60a5fa; }
+    .cal-prize     { color: #4ade80; font-weight: 600; }
+    .cal-status-ongoing { color: var(--live); font-weight: 700; }
+    .cal-section-header {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      padding: 0.5rem 0.8rem 0.2rem;
+      text-transform: uppercase;
+    }
+
+    /* ── Patch Notes styles ── */
+    #patchnotes-panel .widget { max-width: 860px; margin: 0 auto; }
+    .pn-version-tabs {
+      display: flex;
+      gap: 0.4rem;
+      padding: 0.6rem 0.8rem;
+      border-bottom: 1px solid var(--border);
+      flex-wrap: wrap;
+    }
+    .pn-version-tab {
+      background: none;
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 4px;
+      padding: 0.2rem 0.6rem;
+      font-size: 0.72rem;
+      font-family: 'IBM Plex Mono', monospace;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .pn-version-tab.active { border-color: var(--accent2); color: var(--accent2); }
+    .pn-body { padding: 0.8rem; }
+    .pn-section {
+      margin-bottom: 1.2rem;
+    }
+    .pn-section-title {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 1rem;
+      color: var(--accent2);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0.25rem;
+      margin-bottom: 0.5rem;
+    }
+    .pn-hero-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.6rem;
+      padding: 0.4rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+    .pn-hero-name {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 700;
+      font-size: 0.85rem;
+      min-width: 120px;
+      color: var(--text);
+    }
+    .pn-changes { font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
+    .pn-buff  { color: #4ade80; }
+    .pn-nerf  { color: #f87171; }
+    .pn-neutral { color: var(--muted); }
+
     /* Stream panel inside the right flex column */
     .all-widgets-right .stream-panel {
       flex-shrink: 0;
@@ -1357,6 +1493,8 @@
     <div class="dashboard-nav">
       <button class="nav-btn active" data-view="dota2" onclick="switchDashboard('dota2')">Dota 2</button>
       <button class="nav-btn" data-view="rankings-transfers" onclick="switchDashboard('rankings-transfers')">Rankings &amp; Transfers</button>
+      <button class="nav-btn" data-view="calendar" onclick="switchDashboard('calendar')">Kalender</button>
+      <button class="nav-btn" data-view="patchnotes" onclick="switchDashboard('patchnotes')">Patch Notes</button>
       <button class="nav-btn" data-view="all" onclick="switchDashboard('all')">All</button>
       <button class="nav-btn" data-view="custom" onclick="switchDashboard('custom')">Custom</button>
     </div>
@@ -1444,6 +1582,20 @@
       </div>
     </div>
 
+    <!-- Live Streams widget -->
+    <div class="widget" id="live-streams-widget">
+      <div class="widget-header">
+        <div class="widget-title">
+          <div class="logo-icon" style="background:#9146ff;">TV</div>
+          <div class="widget-label">Live Streams</div>
+        </div>
+        <button onclick="refreshLiveStreams()" style="background:none;border:1px solid var(--border);color:var(--muted);padding:0.2rem 0.5rem;border-radius:3px;cursor:pointer;font-size:0.7rem;font-family:inherit;">↻</button>
+      </div>
+      <div id="live-streams-body" style="padding:0.4rem 0;">
+        <div class="loading-state"><div class="loader"></div>Loading…</div>
+      </div>
+    </div>
+
     <!-- Stream panel — lives below standings -->
     <div id="stream-panel" class="stream-panel hidden">
       <div class="stream-header">
@@ -1506,6 +1658,47 @@
       </div>
       <div class="widget-body" id="transfers-body" style="padding:0;">
         <div class="loading-state"><div class="loader"></div>Loading transfers…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Calendar tab panel -->
+  <div id="calendar-panel">
+    <div class="widget">
+      <div class="widget-header">
+        <div class="widget-title">
+          <div class="logo-icon" style="background:#1a6b3c;">📅</div>
+          <div class="widget-label">Turneringskalender</div>
+        </div>
+        <button onclick="loadCalendarData(true)" style="background:none;border:1px solid var(--border);color:var(--muted);padding:0.2rem 0.5rem;border-radius:3px;cursor:pointer;font-size:0.7rem;font-family:inherit;">↻ Refresh</button>
+      </div>
+      <div class="cal-filters" id="cal-filters">
+        <button class="cal-filter-btn active" data-tier="all" onclick="setCalFilter(this,'all')">Alla</button>
+        <button class="cal-filter-btn" data-tier="s" onclick="setCalFilter(this,'s')">S-Tier</button>
+        <button class="cal-filter-btn" data-tier="a" onclick="setCalFilter(this,'a')">A-Tier</button>
+        <button class="cal-filter-btn" data-tier="b" onclick="setCalFilter(this,'b')">B-Tier</button>
+        <button class="cal-filter-btn" data-tier="ongoing" onclick="setCalFilter(this,'ongoing')">Pågående</button>
+        <button class="cal-filter-btn" data-tier="upcoming" onclick="setCalFilter(this,'upcoming')">Kommande</button>
+      </div>
+      <div id="calendar-body">
+        <div class="loading-state"><div class="loader"></div>Loading calendar…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Patch Notes tab panel -->
+  <div id="patchnotes-panel">
+    <div class="widget" style="max-width:900px;margin:0 auto;">
+      <div class="widget-header">
+        <div class="widget-title">
+          <div class="logo-icon" style="background:#7c3aed;">PN</div>
+          <div class="widget-label">Patch Notes</div>
+        </div>
+        <button onclick="loadPatchNotes(true)" style="background:none;border:1px solid var(--border);color:var(--muted);padding:0.2rem 0.5rem;border-radius:3px;cursor:pointer;font-size:0.7rem;font-family:inherit;">↻ Refresh</button>
+      </div>
+      <div class="pn-version-tabs" id="pn-version-tabs"></div>
+      <div id="patchnotes-body">
+        <div class="loading-state"><div class="loader"></div>Loading patch notes…</div>
       </div>
     </div>
   </div>
@@ -2048,7 +2241,11 @@
           <div class="roster-title">${m.logo2 ? `<img src="${m.logo2}" referrerpolicy="no-referrer" style="width:16px;height:16px;object-fit:contain;">` : ''}${m.t2}</div>
           ${renderRoster(r2)}
         </div>
-      </div>`;
+      </div>
+      <div id="h2h-${safeId}" style="padding:0 0.6rem 0.4rem;"></div>`;
+      // Load H2H in background after rosters
+      const h2hEl = document.getElementById('h2h-' + safeId);
+      if (h2hEl) loadH2H(m.t1, m.t2, h2hEl);
     }).catch(() => {
       const el = document.getElementById('roster-' + safeId);
       if (el) el.innerHTML = '<div style="text-align:center;color:var(--muted);font-size:0.6rem;padding:0.5rem;">Could not load rosters</div>';
@@ -3258,21 +3455,26 @@
     });
 
     // Update body layout class
-    document.body.classList.remove('dota2-view', 'all-view', 'custom-view', 'rankings-transfers-view');
+    document.body.classList.remove('dota2-view', 'all-view', 'custom-view', 'rankings-transfers-view', 'calendar-view', 'patchnotes-view');
     document.body.classList.add(view + '-view');
 
-    const rtPanel = document.getElementById('rankings-transfers-panel');
+    const rtPanel  = document.getElementById('rankings-transfers-panel');
+    const calPanel = document.getElementById('calendar-panel');
+    const pnPanel  = document.getElementById('patchnotes-panel');
+
+    // Hide all full-width panels first
+    [rtPanel, calPanel, pnPanel].forEach(p => { if (p) p.style.display = 'none'; });
 
     if (view === 'rankings-transfers') {
-      // Rankings & Transfers tab — full-width panel
-      rtPanel.style.display = '';  // CSS grid handles it via body class
-      setTimeout(() => {
-        loadRankingsData();
-        loadTransfersData();
-      }, 50);
+      rtPanel.style.display = '';
+      setTimeout(() => { loadRankingsData(); loadTransfersData(); }, 50);
+    } else if (view === 'calendar') {
+      calPanel.style.display = '';
+      setTimeout(() => loadCalendarData(), 50);
+    } else if (view === 'patchnotes') {
+      pnPanel.style.display = '';
+      setTimeout(() => loadPatchNotes(), 50);
     } else {
-      // Dota 2 (default) view
-      rtPanel.style.display = 'none';
       renderCurrent();
     }
   };
@@ -4032,14 +4234,484 @@
     }
   }
 
+  // ── Tournament Calendar ──
+  let calendarCache = null;
+  let calendarFilter = 'all';
+
+  function setCalFilter(btn, tier) {
+    document.querySelectorAll('.cal-filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    calendarFilter = tier;
+    if (calendarCache) renderCalendar(calendarCache);
+  }
+
+  function loadCalendarData(force) {
+    if (calendarCache && !force) { renderCalendar(calendarCache); return; }
+    document.getElementById('calendar-body').innerHTML = '<div class="loading-state"><div class="loader"></div>Loading calendar…</div>';
+    calendarCache = null;
+
+    const pages = [
+      'Portal:Tournaments',
+    ];
+    liquipediaXhr('Portal:Tournaments').then(tmp => {
+      const events = parseCalendar(tmp);
+      calendarCache = events;
+      renderCalendar(events);
+    }).catch(() => {
+      document.getElementById('calendar-body').innerHTML = '<div class="empty-state">Could not load calendar.</div>';
+    });
+  }
+
+  function parseCalendar(tmp) {
+    const events = [];
+    const today = new Date(); today.setHours(0,0,0,0);
+
+    // Parse wikitable rows — Liquipedia tournament portal tables
+    tmp.querySelectorAll('.wikitable tr, table.sortable tr').forEach(row => {
+      const cells = [...row.querySelectorAll('td')];
+      if (cells.length < 3) return;
+
+      // Name: first cell with a link
+      const nameA = cells[0]?.querySelector('a') || cells[1]?.querySelector('a');
+      const name  = nameA?.textContent?.trim() || cells[0]?.textContent?.trim() || '';
+      if (!name || name.length < 3) return;
+      const href  = nameA?.getAttribute('href') || '';
+      const url   = href.startsWith('/') ? 'https://liquipedia.net' + href : href;
+
+      // Dates: look for cell with date-like text
+      let dateText = '';
+      let startDate = null, endDate = null;
+      for (const cell of cells) {
+        const t = cell.textContent.trim();
+        const m = t.match(/(\w+ \d{1,2}(?:–\d{1,2})?,?\s*\d{4}|\d{4}-\d{2}-\d{2})/);
+        if (m) { dateText = t; break; }
+      }
+      // Try to parse start/end from date spans
+      const dateSpans = row.querySelectorAll('[data-sort-value], .Date, time');
+      const timestamps = [...dateSpans].map(s => s.getAttribute('data-sort-value') || s.getAttribute('datetime') || '').filter(Boolean);
+      if (timestamps.length >= 2) {
+        startDate = new Date(timestamps[0]);
+        endDate   = new Date(timestamps[1]);
+      } else if (timestamps.length === 1) {
+        startDate = endDate = new Date(timestamps[0]);
+      }
+
+      // Prize pool
+      let prize = '';
+      for (const cell of cells) {
+        const t = cell.textContent.trim();
+        if (/\$[\d,]+|\d+\s*USD/.test(t)) { prize = t.replace(/\s+/g,' ').trim(); break; }
+      }
+
+      // Tier from row class or cell
+      let tier = '';
+      const rowText = row.className + ' ' + [...cells].map(c => c.className).join(' ');
+      if (/s-tier|Stier|tier-1/i.test(rowText)) tier = 's';
+      else if (/a-tier|Atier|tier-2/i.test(rowText)) tier = 'a';
+      else if (/b-tier|Btier|tier-3/i.test(rowText)) tier = 'b';
+      else if (/c-tier|Ctier|tier-4/i.test(rowText)) tier = 'c';
+      // Also check explicit tier cells
+      for (const cell of cells) {
+        const t = cell.textContent.trim().toLowerCase();
+        if (t === 's-tier' || t === 's') { tier = 's'; break; }
+        if (t === 'a-tier' || t === 'a') { tier = 'a'; break; }
+        if (t === 'b-tier' || t === 'b') { tier = 'b'; break; }
+      }
+
+      // Status
+      let status = 'upcoming';
+      if (startDate && endDate) {
+        if (startDate <= today && today <= endDate) status = 'ongoing';
+        else if (endDate < today) status = 'completed';
+      }
+
+      if (name && status !== 'completed') {
+        events.push({ name, url, dateText, startDate, endDate, prize, tier, status });
+      }
+    });
+
+    // Deduplicate by name
+    const seen = new Set();
+    return events.filter(e => { if (seen.has(e.name)) return false; seen.add(e.name); return true; });
+  }
+
+  function renderCalendar(events) {
+    const body = document.getElementById('calendar-body');
+    const f = calendarFilter;
+    let filtered = events;
+    if (f === 'ongoing')  filtered = events.filter(e => e.status === 'ongoing');
+    else if (f === 'upcoming') filtered = events.filter(e => e.status === 'upcoming');
+    else if (f === 's')   filtered = events.filter(e => e.tier === 's');
+    else if (f === 'a')   filtered = events.filter(e => e.tier === 'a');
+    else if (f === 'b')   filtered = events.filter(e => e.tier === 'b');
+
+    if (!filtered.length) {
+      body.innerHTML = '<div class="empty-state" style="padding:1rem;">Inga turneringar hittades.</div>';
+      return;
+    }
+
+    const ongoing  = filtered.filter(e => e.status === 'ongoing');
+    const upcoming = filtered.filter(e => e.status === 'upcoming');
+
+    let html = '';
+    const renderSection = (label, list) => {
+      if (!list.length) return;
+      html += `<div class="cal-section-header">${label} (${list.length})</div><div class="cal-grid">`;
+      list.forEach(e => {
+        const tierClass = e.tier ? `cal-tier-${e.tier}` : '';
+        const tierLabel = e.tier ? e.tier.toUpperCase() + '-Tier' : '';
+        const statusHtml = e.status === 'ongoing' ? '<span class="cal-status-ongoing">● Live</span>' : '';
+        html += `<div class="cal-card">
+          <div class="cal-card-name">${e.url ? `<a href="${e.url}" target="_blank">${escHtml(e.name)}</a>` : escHtml(e.name)}</div>
+          <div class="cal-card-meta">
+            ${statusHtml}
+            ${e.dateText ? `<span>📅 ${escHtml(e.dateText)}</span>` : ''}
+            ${e.prize     ? `<span class="cal-prize">💰 ${escHtml(e.prize)}</span>` : ''}
+            ${tierLabel   ? `<span class="${tierClass}">${tierLabel}</span>` : ''}
+          </div>
+        </div>`;
+      });
+      html += '</div>';
+    };
+
+    renderSection('Pågående', ongoing);
+    renderSection('Kommande', upcoming);
+    body.innerHTML = html || '<div class="empty-state" style="padding:1rem;">Inga turneringar hittades.</div>';
+  }
+
+  // ── Patch Notes ──
+  let patchCache = {};
+  let currentPatch = null;
+
+  function loadPatchNotes(force) {
+    if (currentPatch && patchCache[currentPatch] && !force) { renderPatchNotes(currentPatch); return; }
+    document.getElementById('patchnotes-body').innerHTML = '<div class="loading-state"><div class="loader"></div>Loading patch notes…</div>';
+
+    // Fetch dota2.com/patches to get available versions
+    const patchListUrl = 'https://www.dota2.com/patches';
+    fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(patchListUrl), { cache: 'no-store' })
+      .then(r => { if (!r.ok) throw new Error(); return r.text(); })
+      .then(html => {
+        // Extract patch versions from the page
+        const versions = [];
+        const re = /"([0-9]+\.[0-9]+[a-z]?)"/g;
+        let m;
+        const tmp = document.createElement('div');
+        tmp.innerHTML = html;
+        // Look for patch links/buttons
+        tmp.querySelectorAll('a[href*="patchnotes"], [data-patch], .patch-version').forEach(el => {
+          const v = (el.getAttribute('data-patch') || el.textContent || '').trim().match(/\d+\.\d+[a-z]?/);
+          if (v) versions.push(v[0]);
+        });
+        // Fallback: regex scan
+        if (!versions.length) {
+          const re2 = /\b(7\.\d{2}[a-z]?)\b/g;
+          let m2;
+          while ((m2 = re2.exec(html)) !== null) {
+            if (!versions.includes(m2[1])) versions.push(m2[1]);
+          }
+          versions.sort((a,b) => b.localeCompare(a, undefined, {numeric:true}));
+        }
+
+        const top = versions.slice(0, 6);
+        if (!top.length) throw new Error('no versions');
+        renderPatchTabs(top);
+        fetchPatchVersion(top[0]);
+      })
+      .catch(() => {
+        // Fallback: try fetching a known recent patch directly
+        const fallbackVersion = '7.38';
+        renderPatchTabs([fallbackVersion]);
+        fetchPatchVersion(fallbackVersion);
+      });
+  }
+
+  function renderPatchTabs(versions) {
+    currentPatch = versions[0];
+    document.getElementById('pn-version-tabs').innerHTML = versions.map((v, i) =>
+      `<button class="pn-version-tab${i===0?' active':''}" onclick="switchPatchTab(this,'${v}')">${v}</button>`
+    ).join('');
+  }
+
+  window.switchPatchTab = function(btn, version) {
+    document.querySelectorAll('.pn-version-tab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentPatch = version;
+    if (patchCache[version]) renderPatchNotes(version);
+    else fetchPatchVersion(version);
+  };
+
+  function fetchPatchVersion(version) {
+    document.getElementById('patchnotes-body').innerHTML = '<div class="loading-state"><div class="loader"></div>Loading ' + version + '…</div>';
+    const url = 'https://www.dota2.com/patchnotes/' + version;
+    fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(url))
+      .then(r => { if (!r.ok) throw new Error(); return r.text(); })
+      .then(html => {
+        const parsed = parsePatchHtml(html, version);
+        patchCache[version] = parsed;
+        renderPatchNotes(version);
+      })
+      .catch(() => {
+        // Try corsproxy fallback
+        fetch('https://corsproxy.io/?' + encodeURIComponent('https://www.dota2.com/patchnotes/' + version))
+          .then(r => { if (!r.ok) throw new Error(); return r.text(); })
+          .then(html => {
+            const parsed = parsePatchHtml(html, version);
+            patchCache[version] = parsed;
+            renderPatchNotes(version);
+          })
+          .catch(() => {
+            document.getElementById('patchnotes-body').innerHTML =
+              `<div class="empty-state" style="padding:1rem;">Kunde inte ladda patch ${version}.<br>
+               <a href="https://www.dota2.com/patchnotes/${version}" target="_blank" style="color:var(--accent2);">Öppna på dota2.com →</a></div>`;
+          });
+      });
+  }
+
+  function parsePatchHtml(html, version) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = html;
+
+    const sections = [];
+    let generalNotes = [];
+
+    // Strategy 1: dota2.com's React-rendered patch note structure
+    // Heroes have class like "hero", items have "item", general has "general"
+    const heroSections = tmp.querySelectorAll('[class*="hero_entry"], [class*="HeroEntry"], .hero-entry');
+    if (heroSections.length) {
+      heroSections.forEach(sec => {
+        const nameEl = sec.querySelector('[class*="hero_name"], [class*="HeroName"], h2, h3');
+        const name = nameEl?.textContent?.trim() || '';
+        const changes = [...sec.querySelectorAll('[class*="ability"], [class*="Ability"], li, p')]
+          .map(el => el.textContent.trim()).filter(t => t.length > 3 && t.length < 200);
+        if (name && changes.length) sections.push({ type: 'hero', name, changes });
+      });
+    }
+
+    // Strategy 2: Look for JSON embedded in the page (dota2.com embeds patch data as JS)
+    const scripts = [...tmp.querySelectorAll('script')];
+    for (const s of scripts) {
+      const t = s.textContent || '';
+      // Look for patch_notes JSON object
+      const m = t.match(/patch_notes\s*[:=]\s*(\{[\s\S]{50,}?\})\s*[,;]/);
+      if (m) {
+        try {
+          const data = JSON.parse(m[1]);
+          // Parse hero changes
+          if (data.heroes) {
+            Object.entries(data.heroes).forEach(([hero, changes]) => {
+              const changeList = Array.isArray(changes) ? changes : Object.values(changes).flat();
+              sections.push({ type: 'hero', name: hero.replace(/_/g,' '), changes: changeList.map(String).filter(c => c.length > 2) });
+            });
+          }
+          if (data.general) {
+            generalNotes = (Array.isArray(data.general) ? data.general : [data.general]).map(String);
+          }
+        } catch {}
+      }
+    }
+
+    // Strategy 3: plain text fallback — extract lines that look like patch notes
+    if (!sections.length) {
+      const text = tmp.textContent;
+      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 5);
+      let current = null;
+      lines.forEach(line => {
+        // Detect hero name (title case, 2-30 chars, no numbers)
+        if (/^[A-Z][a-z]+([ '][A-Z][a-z]+)*$/.test(line) && line.length < 30) {
+          if (current) sections.push(current);
+          current = { type: 'hero', name: line, changes: [] };
+        } else if (current && (line.startsWith('-') || line.startsWith('•') || line.match(/^[A-Z]/))) {
+          current.changes.push(line.replace(/^[-•]\s*/, ''));
+        } else if (!current && line.length > 10) {
+          generalNotes.push(line);
+        }
+      });
+      if (current) sections.push(current);
+    }
+
+    return { version, sections: sections.slice(0, 80), generalNotes: generalNotes.slice(0, 20) };
+  }
+
+  function renderPatchNotes(version) {
+    const data = patchCache[version];
+    const body = document.getElementById('patchnotes-body');
+    if (!data) { body.innerHTML = '<div class="empty-state">Ingen data.</div>'; return; }
+
+    let html = '<div class="pn-body">';
+
+    if (data.generalNotes?.length) {
+      html += `<div class="pn-section"><div class="pn-section-title">General</div>`;
+      data.generalNotes.forEach(n => {
+        html += `<div class="pn-hero-row"><div class="pn-changes">${escHtml(n)}</div></div>`;
+      });
+      html += '</div>';
+    }
+
+    if (data.sections?.length) {
+      html += `<div class="pn-section"><div class="pn-section-title">Heroes (${data.sections.filter(s=>s.type==='hero').length})</div>`;
+      data.sections.filter(s => s.type === 'hero').forEach(s => {
+        html += `<div class="pn-hero-row">
+          <div class="pn-hero-name">${escHtml(s.name)}</div>
+          <div class="pn-changes">${s.changes.map(c => {
+            const cls = /increas|buff|\+[0-9]|now|added/i.test(c) ? 'pn-buff'
+                      : /decreas|reduc|nerf|-[0-9]|remov|no longer/i.test(c) ? 'pn-nerf' : 'pn-neutral';
+            return `<span class="${cls}">• ${escHtml(c)}</span>`;
+          }).join('<br>')}</div>
+        </div>`;
+      });
+      html += '</div>';
+    }
+
+    if (!data.sections?.length && !data.generalNotes?.length) {
+      html += `<div class="empty-state" style="padding:1rem;">
+        Patch notes för ${version} kunde inte parsas.<br>
+        <a href="https://www.dota2.com/patchnotes/${version}" target="_blank" style="color:var(--accent2);">Öppna på dota2.com →</a>
+      </div>`;
+    }
+
+    html += '</div>';
+    body.innerHTML = html;
+  }
+
+  // ── H2H (Head-to-Head) ──
+  const h2hCache = {};
+
+  async function loadH2H(t1, t2, containerEl) {
+    const key = [t1,t2].sort().join('|');
+    containerEl.innerHTML = '<div class="loading-state" style="padding:0.5rem;"><div class="loader"></div> Loading H2H…</div>';
+
+    if (h2hCache[key]) { renderH2H(h2hCache[key], t1, t2, containerEl); return; }
+
+    // Fetch t1's recent matches page from Liquipedia and scan for t2
+    try {
+      const slug = t1.replace(/ /g, '_');
+      const tmp = await liquipediaXhr(slug);
+      const results = parseTeamResults(tmp, t2);
+      h2hCache[key] = results;
+      renderH2H(results, t1, t2, containerEl);
+    } catch {
+      containerEl.innerHTML = '<div style="color:var(--muted);font-size:0.75rem;padding:0.5rem;">H2H ej tillgänglig.</div>';
+    }
+  }
+
+  function parseTeamResults(tmp, opponent) {
+    const results = [];
+    const oppLow = opponent.toLowerCase();
+
+    tmp.querySelectorAll('table.wikitable tr, .recent-matches tr, .matches tr').forEach(row => {
+      const text = row.textContent.toLowerCase();
+      if (!text.includes(oppLow)) return;
+      const cells = [...row.querySelectorAll('td')];
+      if (cells.length < 3) return;
+
+      // Try to find score
+      let score = '', date = '', winner = '';
+      cells.forEach(cell => {
+        const t = cell.textContent.trim();
+        if (/^\d+[-:]\d+$/.test(t)) score = t;
+        if (/\d{4}-\d{2}-\d{2}|\w+ \d{1,2},? \d{4}/.test(t)) date = t.match(/(\d{4}-\d{2}-\d{2}|\w+ \d{1,2},? \d{4})/)?.[0] || '';
+      });
+
+      // Find tournament name
+      const tournEl = row.querySelector('a[href*="/dota2/"]');
+      const tourn = tournEl?.textContent?.trim() || '';
+
+      if (score || date) {
+        results.push({ score, date, tourn, text: row.textContent.replace(/\s+/g,' ').trim().substring(0,120) });
+      }
+    });
+    return results.slice(0, 10);
+  }
+
+  function renderH2H(results, t1, t2, containerEl) {
+    if (!results.length) {
+      containerEl.innerHTML = `<div style="color:var(--muted);font-size:0.75rem;padding:0.5rem 0;">Inga H2H-möten hittade.</div>`;
+      return;
+    }
+    let html = `<div style="font-family:'Rajdhani',sans-serif;font-size:0.8rem;margin-top:0.5rem;">
+      <div style="font-weight:700;color:var(--muted);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.3rem;">H2H – Senaste möten</div>`;
+    results.forEach(r => {
+      html += `<div style="display:flex;gap:0.6rem;align-items:center;padding:0.2rem 0;border-bottom:1px solid rgba(255,255,255,0.04);">
+        ${r.score ? `<span style="font-weight:700;color:var(--text);min-width:2.5rem;">${escHtml(r.score)}</span>` : ''}
+        ${r.date  ? `<span style="color:var(--muted);font-size:0.7rem;">${escHtml(r.date)}</span>` : ''}
+        ${r.tourn ? `<span style="color:var(--accent2);font-size:0.7rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escHtml(r.tourn)}</span>` : ''}
+      </div>`;
+    });
+    html += '</div>';
+    containerEl.innerHTML = html;
+  }
+
+  // ── Live Twitch Streams widget ──
+  const KNOWN_DOTA_STREAMERS = [
+    'gorgc','arteezy','SingSing','bsj','grubby','wagamamatv','Puppey','dendi',
+    'miradota2','KheZu','Matu','Quinn_Dota','MidOrFeed_','Resolut1on','Moo',
+    'XcaliburYe','SUNSfan','SyndereN','ODPixel','blastadota','BeyondTheSummit',
+    'WePlay_Esports','JoinDOTA','PGLdota2'
+  ];
+  let liveStreamsCache = null;
+
+  async function loadLiveStreams(force) {
+    if (liveStreamsCache && !force) { renderLiveStreams(liveStreamsCache); return; }
+    liveStreamsCache = null;
+    document.getElementById('live-streams-body').innerHTML = '<div class="loading-state"><div class="loader"></div>Loading…</div>';
+
+    const results = [];
+    // Check in parallel batches of 6 to avoid hammering decapi.me
+    const BATCH = 6;
+    for (let i = 0; i < KNOWN_DOTA_STREAMERS.length; i += BATCH) {
+      await Promise.allSettled(KNOWN_DOTA_STREAMERS.slice(i, i + BATCH).map(async ch => {
+        try {
+          const uptime = await fetch(`https://decapi.me/twitch/uptime/${ch}`, { cache: 'no-store' }).then(r => r.text());
+          const live = !!uptime && !uptime.toLowerCase().includes('offline') && !uptime.toLowerCase().includes('error');
+          if (live) {
+            const viewers = await fetch(`https://decapi.me/twitch/viewercount/${ch}`, { cache: 'no-store' }).then(r => r.text()).catch(() => '0');
+            const count = parseInt(viewers) || 0;
+            results.push({ channel: ch, viewers: count, uptime: uptime.trim() });
+          }
+        } catch {}
+      }));
+    }
+    results.sort((a,b) => b.viewers - a.viewers);
+    liveStreamsCache = results;
+    renderLiveStreams(results);
+  }
+
+  function renderLiveStreams(streams) {
+    const body = document.getElementById('live-streams-body');
+    if (!body) return;
+    if (!streams.length) {
+      body.innerHTML = '<div class="empty-state" style="padding:0.6rem 0.8rem;font-size:0.78rem;">Inga Dota 2-streams live just nu.</div>';
+      return;
+    }
+    body.innerHTML = streams.map(s => `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:0.3rem 0.8rem;border-bottom:1px solid rgba(255,255,255,0.04);font-family:'Rajdhani',sans-serif;font-size:0.83rem;">
+        <div style="display:flex;align-items:center;gap:0.4rem;">
+          <span style="width:6px;height:6px;border-radius:50%;background:#9146ff;display:inline-block;animation:pulse 1.4s infinite;flex-shrink:0;"></span>
+          <a href="https://www.twitch.tv/${s.channel}" target="_blank" onclick="openStream('twitch:${s.channel}','${escHtml(s.channel)}',event,'','')" style="color:#b388ff;font-weight:700;text-decoration:none;">${escHtml(s.channel)}</a>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.6rem;color:var(--muted);font-size:0.75rem;">
+          <span title="Viewers">👁 ${s.viewers > 0 ? s.viewers.toLocaleString() : '–'}</span>
+          <span title="Uptime">⏱ ${escHtml(s.uptime)}</span>
+        </div>
+      </div>`).join('');
+  }
+
+  function refreshLiveStreams() {
+    liveStreamsCache = null;
+    loadLiveStreams(true);
+  }
+
   // Initialize Dota 2 view on page load
   switchDashboard('dota2');
 
-  // Pre-load rankings & transfers in background so the tab is ready instantly
+  // Pre-load all background data so tabs are ready instantly
   setTimeout(() => { loadRankingsData(); loadTransfersData(); }, 1500);
+  setTimeout(() => loadCalendarData(), 3000);
+  setTimeout(() => loadLiveStreams(), 500);
 
   // Version badge + changelog
-  const VERSION = '1.0.79';
+  const VERSION = '1.0.80';
   const LAST_UPDATE = '2026-04-11';
   const CHANGELOG = [
     { v: '1.0.70', date: '2026-04-10', notes: [

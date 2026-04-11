@@ -236,9 +236,15 @@
     .xfer-row:hover { background: rgba(255,255,255,0.03); }
 
     .xfer-flag {
-      margin-right: 0.3rem;
-      font-size: 0.85rem;
-      line-height: 1;
+      margin-right: 0.35rem;
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+    .xfer-flag img {
+      width: 16px;
+      height: 12px;
+      object-fit: cover;
+      border-radius: 1px;
       vertical-align: middle;
     }
     .xfer-player {
@@ -3850,8 +3856,22 @@
     // Step 1: match against pro players list (one fetch for all)
     const proMap = await loadProPlayersMap();
     const stillUncached = [];
+    // Helper: try multiple name variants against proMap
+    const proLookup = (name) => {
+      const lo = name.toLowerCase();
+      if (proMap[lo]) return proMap[lo];
+      // Strip leading "XX " country prefix that cyberscore sometimes prepends (e.g. "RU miracle" → "miracle")
+      const noPrefix = lo.replace(/^[a-z]{2}\s+/, '');
+      if (noPrefix !== lo && proMap[noPrefix]) return proMap[noPrefix];
+      // Try partial: last word or longest token
+      const parts = lo.split(/\s+/);
+      for (const p of parts) {
+        if (p.length >= 3 && proMap[p]) return proMap[p];
+      }
+      return null;
+    };
     uncached.forEach(name => {
-      const cc = proMap[name.toLowerCase()];
+      const cc = proLookup(name);
       if (cc) {
         _countryCache[name] = cc;
         rows.forEach(r => { if (r.player === name && !r.country) r.country = cc; });
@@ -3936,7 +3956,7 @@
                         : /loan/i.test(r.type)  ? 'xfer-type-loan'
                         : /coach/i.test(r.type) ? 'xfer-type-coach'
                         : 'xfer-type-join';
-        const flag = r.country ? `<span class="xfer-flag" title="${r.country.toUpperCase()}">${toFlagEmoji(r.country)}</span>` : '';
+        const flag = r.country ? `<span class="xfer-flag"><img src="https://flagcdn.com/16x12/${r.country.toLowerCase()}.png" referrerpolicy="no-referrer" title="${r.country.toUpperCase()}" alt="${r.country.toUpperCase()}"></span>` : '';
         html += `<div class="xfer-row">
           <span class="xfer-player">${flag}${escHtml(r.player)}</span>
           <span class="xfer-from">${escHtml(r.from)}</span>
@@ -3999,7 +4019,7 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.74';
+  const VERSION = '1.0.75';
   const LAST_UPDATE = '2026-04-11';
   const CHANGELOG = [
     { v: '1.0.70', date: '2026-04-10', notes: [

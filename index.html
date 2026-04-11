@@ -1945,15 +1945,21 @@
         try {
           const url = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://kick.com/api/v2/channels/' + slug);
           const res = await fetch(url, { signal: AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined });
-          if (!res.ok) { checked.set(slug, false); return; }
+          if (!res.ok) {
+            // Proxy/network failure — keep button visible (fail open)
+            checked.set(slug, null);
+            return;
+          }
           const data = await res.json();
           // livestream is null when offline, object when live
           checked.set(slug, !!(data && data.livestream));
         } catch {
-          checked.set(slug, false);
+          // Network/timeout failure — keep button visible (fail open)
+          checked.set(slug, null);
         }
       }
 
+      // Only hide if we got a confirmed "not live" response (false), not on API failure (null)
       if (checked.get(slug) === false) {
         btn.style.display = 'none';
       }
@@ -4033,7 +4039,7 @@
   setTimeout(() => { loadRankingsData(); loadTransfersData(); }, 1500);
 
   // Version badge + changelog
-  const VERSION = '1.0.78';
+  const VERSION = '1.0.79';
   const LAST_UPDATE = '2026-04-11';
   const CHANGELOG = [
     { v: '1.0.70', date: '2026-04-10', notes: [

@@ -1826,6 +1826,8 @@
       if (seen.has(key)) return;
       seen.add(key);
 
+      if ((tourn || '').toLowerCase().includes('fonbet')) return;
+
       matches.push({ t1, t2, s1, s2, dateISO, tourn, tournPage, stream, enStream, streams, bestOf, logo1, logo2, isLive, isCompleted, isUpcoming });
     });
 
@@ -2764,33 +2766,38 @@
         }
 
         const teams = [];
+        let lastPlace = '';
         table.querySelectorAll('tr').forEach(row => {
           const cells = row.querySelectorAll('td');
           if (cells.length < 2) return;
 
-          const placeCell = cells[0];
-          const place = placeCell?.textContent?.trim() || '';
-          if (!place || !place.match(/^\d/)) return;
-
-          // Team name: from .grouptableslot or team-template
+          // Team name: from .grouptableslot or team-template (check early to skip non-team rows)
           const teamSlot = row.querySelector('.grouptableslot');
           const teamEl = teamSlot?.querySelector('a') || row.querySelector('.team-template-text a');
           const team = teamEl?.textContent?.trim() || teamSlot?.textContent?.trim() || '';
+          if (!team) return;
+
+          const placeCell = cells[0];
+          const placeRaw = placeCell?.textContent?.trim() || '';
+          // Allow blank place for tied rows — reuse last seen numeric place
+          const place = placeRaw.match(/^\d/) ? placeRaw : (lastPlace || '');
+          if (placeRaw.match(/^\d/)) lastPlace = placeRaw;
 
           // Logo
           const logoEl = row.querySelector('.team-template-image-icon img');
           const src = logoEl?.getAttribute('src') || '';
           const logo = src.startsWith('http') ? src : (src.startsWith('//') ? 'https:' + src : (src ? 'https://liquipedia.net' + src : ''));
 
-          // Record & map score from last cells
-          // Some tables: last 2 cells = W-L record + Maps; others: only 1 record cell "W-L"
+          // Record & map score: scan all stat cells (index ≥ 2) for W-L patterns
+          // Typical columns: W-L (match) | Maps | Points  OR  W-L | Maps  OR  just W-L
           const allCells = [...cells];
-          const secondLast = allCells[allCells.length - 2]?.textContent?.trim() || '';
-          const last = allCells[allCells.length - 1]?.textContent?.trim() || '';
-          // If second-to-last looks like a W-D-L or W-L record (digits with dashes), treat as record + maps
-          const looksLikeRecord = /^\d+[\-–]\d/.test(secondLast);
-          const record = looksLikeRecord ? secondLast : last;
-          const mapScore = looksLikeRecord ? last : '';
+          const recordCells = [];
+          for (let i = 2; i < allCells.length; i++) {
+            const t = allCells[i]?.textContent?.trim() || '';
+            if (/^\d+[\-–]\d/.test(t)) recordCells.push(t);
+          }
+          const record = recordCells[0] || '';
+          const mapScore = recordCells[1] || '';
 
           // Qualification status: check row class first, then first <td> class (some pages only mark the cell)
           const rowClass = row.className || '';
@@ -2802,7 +2809,7 @@
           else if (combinedClass.includes('bg-stay')) status = 'stay';
           else if (combinedClass.includes('bg-down')) status = 'down';
 
-          if (team) teams.push({ place, team, logo, record, mapScore, status });
+          teams.push({ place, team, logo, record, mapScore, status });
         });
 
         if (teams.length) {
@@ -3818,15 +3825,16 @@
     const uncached = toFetch.filter(n => !_countryCache[n]);
     if (!uncached.length) { renderTransfers(rows); return; }
 
-    // Fetch in parallel batches of 6
-    const BATCH = 6;
+    // Fetch in parallel batches of 4 (two API calls per player: search + profile)
+    const BATCH = 4;
     for (let i = 0; i < uncached.length; i += BATCH) {
       await Promise.allSettled(
         uncached.slice(i, i + BATCH).map(async name => {
           try {
+            // Step 1: search for account_id
             const res = await fetch(
               'https://api.opendota.com/api/search?q=' + encodeURIComponent(name),
-              { signal: AbortSignal.timeout ? AbortSignal.timeout(5000) : undefined }
+              { signal: AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined }
             );
             if (!res.ok) return;
             const data = await res.json();
@@ -3837,7 +3845,17 @@
               (p.personaname || '').toLowerCase() === name.toLowerCase()
             ) || data[0];
 
-            const cc = (match.country_code || '').toLowerCase();
+            const accountId = match.account_id;
+            if (!accountId) return;
+
+            // Step 2: fetch player profile for loccountrycode
+            const res2 = await fetch(
+              `https://api.opendota.com/api/players/${accountId}`,
+              { signal: AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined }
+            );
+            if (!res2.ok) return;
+            const profile = await res2.json();
+            const cc = ((profile.profile && profile.profile.loccountrycode) || '').toLowerCase();
             if (cc && cc.length === 2) {
               _countryCache[name] = cc;
               rows.forEach(r => { if (r.player === name && !r.country) r.country = cc; });
@@ -3950,8 +3968,8 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.72';
-  const LAST_UPDATE = '2026-04-10';
+  const VERSION = '1.0.73';
+  const LAST_UPDATE = '2026-04-11';
   const CHANGELOG = [
     { v: '1.0.70', date: '2026-04-10', notes: [
       'Multiple Watch buttons per live match — labeled ENG / RU / gorgc',

@@ -3804,10 +3804,32 @@
       });
   }
 
-  // Enrich transfer rows with country codes from OpenDota player search.
-  // Runs after initial render; re-renders once all searches complete.
+  // Enrich transfer rows with country codes from OpenDota pro players list.
+  // Fetches /api/proPlayers once — returns curated list of pro players with country_code.
+  // Falls back to per-player search for anyone not on the pro list.
   // Results cached in sessionStorage to avoid repeat calls on re-render/refresh.
   const _countryCache = JSON.parse(sessionStorage.getItem('xfer_countries') || '{}');
+  let _proPlayersMap = null; // name (lowercase) → country_code
+
+  async function loadProPlayersMap() {
+    if (_proPlayersMap) return _proPlayersMap;
+    _proPlayersMap = {};
+    try {
+      const res = await fetch('https://api.opendota.com/api/proPlayers',
+        { signal: AbortSignal.timeout ? AbortSignal.timeout(8000) : undefined });
+      if (!res.ok) return _proPlayersMap;
+      const data = await res.json();
+      if (!Array.isArray(data)) return _proPlayersMap;
+      data.forEach(p => {
+        const cc = (p.country_code || '').toLowerCase();
+        if (!cc || cc.length !== 2) return;
+        // Index by name variations: name, personaname, full_history_time handle
+        if (p.name)        _proPlayersMap[p.name.toLowerCase()]        = cc;
+        if (p.personaname) _proPlayersMap[p.personaname.toLowerCase()] = cc;
+      });
+    } catch {}
+    return _proPlayersMap;
+  }
 
   async function enrichTransfersCountry(rows) {
     const toFetch = [...new Set(
@@ -3822,16 +3844,28 @@
       }
     });
 
-    const uncached = toFetch.filter(n => !_countryCache[n]);
+    const uncached = toFetch.filter(n => !_countryCache[n] && _countryCache[n] !== '');
     if (!uncached.length) { renderTransfers(rows); return; }
 
-    // Fetch in parallel batches of 4 (two API calls per player: search + profile)
+    // Step 1: match against pro players list (one fetch for all)
+    const proMap = await loadProPlayersMap();
+    const stillUncached = [];
+    uncached.forEach(name => {
+      const cc = proMap[name.toLowerCase()];
+      if (cc) {
+        _countryCache[name] = cc;
+        rows.forEach(r => { if (r.player === name && !r.country) r.country = cc; });
+      } else {
+        stillUncached.push(name);
+      }
+    });
+
+    // Step 2: fallback — per-player search for those not in pro list
     const BATCH = 4;
-    for (let i = 0; i < uncached.length; i += BATCH) {
+    for (let i = 0; i < stillUncached.length; i += BATCH) {
       await Promise.allSettled(
-        uncached.slice(i, i + BATCH).map(async name => {
+        stillUncached.slice(i, i + BATCH).map(async name => {
           try {
-            // Step 1: search for account_id
             const res = await fetch(
               'https://api.opendota.com/api/search?q=' + encodeURIComponent(name),
               { signal: AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined }
@@ -3839,28 +3873,25 @@
             if (!res.ok) return;
             const data = await res.json();
             if (!Array.isArray(data) || !data.length) return;
-
-            // Prefer exact match on personaname, else first result
             const match = data.find(p =>
               (p.personaname || '').toLowerCase() === name.toLowerCase()
             ) || data[0];
-
             const accountId = match.account_id;
             if (!accountId) return;
 
-            // Step 2: fetch player profile for loccountrycode
             const res2 = await fetch(
               `https://api.opendota.com/api/players/${accountId}`,
               { signal: AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined }
             );
             if (!res2.ok) return;
             const profile = await res2.json();
-            const cc = ((profile.profile && profile.profile.loccountrycode) || '').toLowerCase();
+            // proPlayers country_code takes priority over loccountrycode (Steam location)
+            const cc = ((profile.profile && profile.profile.country_code) || (profile.profile && profile.profile.loccountrycode) || '').toLowerCase();
             if (cc && cc.length === 2) {
               _countryCache[name] = cc;
               rows.forEach(r => { if (r.player === name && !r.country) r.country = cc; });
             } else {
-              _countryCache[name] = ''; // negative cache
+              _countryCache[name] = '';
             }
           } catch {}
         })
@@ -3968,7 +3999,7 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.73';
+  const VERSION = '1.0.74';
   const LAST_UPDATE = '2026-04-11';
   const CHANGELOG = [
     { v: '1.0.70', date: '2026-04-10', notes: [

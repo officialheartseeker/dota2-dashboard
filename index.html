@@ -221,10 +221,10 @@
       text-transform: uppercase;
     }
 
-    /* Each transfer row: grid — player | from | arrow | to | type-badge */
+    /* Each transfer row: grid — country | player | from | arrow | to | type-badge */
     .xfer-row {
       display: grid;
-      grid-template-columns: 1fr 1fr 1.2rem 1fr auto;
+      grid-template-columns: 2.2rem 1fr 1fr 1.2rem 1fr auto;
       align-items: center;
       gap: 0 0.4rem;
       padding: 0.35rem 0.7rem;
@@ -235,17 +235,21 @@
     }
     .xfer-row:hover { background: rgba(255,255,255,0.03); }
 
-    .xfer-flag {
-      margin-right: 0.35rem;
-      vertical-align: middle;
-      flex-shrink: 0;
+    .xfer-country {
+      display: flex;
+      align-items: center;
+      gap: 0.25rem;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 0.75rem;
+      white-space: nowrap;
     }
-    .xfer-flag img {
+    .xfer-country img {
       width: 16px;
       height: 12px;
       object-fit: cover;
       border-radius: 1px;
-      vertical-align: middle;
+      flex-shrink: 0;
     }
     .xfer-player {
       font-weight: 700;
@@ -3956,9 +3960,12 @@
                         : /loan/i.test(r.type)  ? 'xfer-type-loan'
                         : /coach/i.test(r.type) ? 'xfer-type-coach'
                         : 'xfer-type-join';
-        const flag = r.country ? `<span class="xfer-flag"><img src="https://flagcdn.com/16x12/${r.country.toLowerCase()}.png" referrerpolicy="no-referrer" title="${r.country.toUpperCase()}" alt="${r.country.toUpperCase()}"></span>` : '';
+        const countryCol = r.country
+          ? `<span class="xfer-country"><img src="https://flagcdn.com/16x12/${r.country.toLowerCase()}.png" referrerpolicy="no-referrer" title="${r.country.toUpperCase()}" alt="${r.country.toUpperCase()}"></span>`
+          : `<span class="xfer-country"></span>`;
         html += `<div class="xfer-row">
-          <span class="xfer-player">${flag}${escHtml(r.player)}</span>
+          ${countryCol}
+          <span class="xfer-player">${escHtml(r.player)}</span>
           <span class="xfer-from">${escHtml(r.from)}</span>
           <span class="xfer-arrow">→</span>
           <span class="xfer-to${isSameTeam ? ' xfer-same' : ''}">${escHtml(r.to)}</span>
@@ -4019,7 +4026,7 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.75';
+  const VERSION = '1.0.76';
   const LAST_UPDATE = '2026-04-11';
   const CHANGELOG = [
     { v: '1.0.70', date: '2026-04-10', notes: [

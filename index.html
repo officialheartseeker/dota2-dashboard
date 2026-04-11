@@ -224,7 +224,7 @@
     /* Each transfer row: grid — country | player | from | arrow | to | type-badge */
     .xfer-row {
       display: grid;
-      grid-template-columns: 2.2rem 1fr 1fr 1.2rem 1fr auto;
+      grid-template-columns: 3.2rem 1fr 1fr 1.2rem 1fr auto;
       align-items: center;
       gap: 0 0.4rem;
       padding: 0.35rem 0.7rem;
@@ -3535,7 +3535,11 @@
 
     body.innerHTML = '<div class="loading-state"><div class="loader"></div>Loading transfers…</div>';
     transfersCache = null;
-    if (force) try { sessionStorage.removeItem('xfer_countries'); } catch {}
+    if (force) {
+      try { sessionStorage.removeItem('xfer_countries'); } catch {}
+      Object.keys(_countryCache).forEach(k => delete _countryCache[k]);
+      _proPlayersMap = null;
+    }
 
     // Try proxies in order until one works
     const TARGET = 'https://cyberscore.live/en/transfers/';
@@ -3961,8 +3965,8 @@
                         : /coach/i.test(r.type) ? 'xfer-type-coach'
                         : 'xfer-type-join';
         const countryCol = r.country
-          ? `<span class="xfer-country"><img src="https://flagcdn.com/16x12/${r.country.toLowerCase()}.png" referrerpolicy="no-referrer" title="${r.country.toUpperCase()}" alt="${r.country.toUpperCase()}"></span>`
-          : `<span class="xfer-country"></span>`;
+          ? `<span class="xfer-country"><img src="https://flagcdn.com/16x12/${r.country.toLowerCase()}.png" referrerpolicy="no-referrer" alt="${r.country.toUpperCase()}">${r.country.toUpperCase()}</span>`
+          : `<span class="xfer-country">—</span>`;
         html += `<div class="xfer-row">
           ${countryCol}
           <span class="xfer-player">${escHtml(r.player)}</span>
@@ -4026,7 +4030,7 @@
   switchDashboard('dota2');
 
   // Version badge + changelog
-  const VERSION = '1.0.76';
+  const VERSION = '1.0.77';
   const LAST_UPDATE = '2026-04-11';
   const CHANGELOG = [
     { v: '1.0.70', date: '2026-04-10', notes: [

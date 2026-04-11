@@ -264,7 +264,7 @@
     }
 
     /* ── Patch Notes styles ── */
-    #patchnotes-panel .widget { max-width: 860px; margin: 0 auto; }
+    #patchnotes-panel .widget { max-width: 1000px; margin: 0 auto; }
     .pn-version-tabs {
       display: flex;
       gap: 0.4rem;
@@ -277,44 +277,100 @@
       border: 1px solid var(--border);
       color: var(--muted);
       border-radius: 4px;
-      padding: 0.2rem 0.6rem;
-      font-size: 0.72rem;
+      padding: 0.2rem 0.7rem;
+      font-size: 0.78rem;
       font-family: 'IBM Plex Mono', monospace;
       cursor: pointer;
       transition: all 0.15s;
     }
-    .pn-version-tab.active { border-color: var(--accent2); color: var(--accent2); }
-    .pn-body { padding: 0.8rem; }
-    .pn-section {
-      margin-bottom: 1.2rem;
-    }
+    .pn-version-tab.active { border-color: var(--accent2); color: var(--accent2); background: rgba(255,160,0,0.07); }
+    .pn-body { padding: 0; }
+    .pn-section { margin-bottom: 0; }
     .pn-section-title {
       font-family: 'Rajdhani', sans-serif;
       font-weight: 700;
-      font-size: 1rem;
-      color: var(--accent2);
+      font-size: 0.72rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      background: var(--card);
+      border-top: 1px solid var(--border);
       border-bottom: 1px solid var(--border);
-      padding-bottom: 0.25rem;
-      margin-bottom: 0.5rem;
+      padding: 0.4rem 0.9rem;
     }
-    .pn-hero-row {
+    /* Hero card */
+    .pn-hero-card {
+      display: grid;
+      grid-template-columns: 96px 1fr;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      transition: background 0.1s;
+    }
+    .pn-hero-card:hover { background: rgba(255,255,255,0.02); }
+    .pn-hero-card-left {
       display: flex;
-      align-items: flex-start;
-      gap: 0.6rem;
-      padding: 0.4rem 0;
-      border-bottom: 1px solid rgba(255,255,255,0.04);
+      flex-direction: column;
+      align-items: center;
+      padding: 0.55rem 0.5rem;
+      border-right: 1px solid rgba(255,255,255,0.05);
+      gap: 0.3rem;
     }
-    .pn-hero-name {
+    .pn-hero-portrait {
+      width: 80px;
+      height: 45px;
+      object-fit: cover;
+      border-radius: 3px;
+      display: block;
+    }
+    .pn-hero-card-name {
       font-family: 'Rajdhani', sans-serif;
-      font-weight: 700;
-      font-size: 0.85rem;
-      min-width: 120px;
+      font-weight: 500;
+      font-size: 0.78rem;
       color: var(--text);
+      text-align: center;
+      line-height: 1.2;
     }
-    .pn-changes { font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
-    .pn-buff  { color: #4ade80; }
-    .pn-nerf  { color: #f87171; }
+    .pn-hero-card-changes {
+      padding: 0.45rem 0.7rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+    }
+    /* Change lines */
+    .pn-change-line {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.72rem;
+      line-height: 1.55;
+      padding-left: 0.1rem;
+    }
+    .pn-change-sub {
+      padding-left: 1.1rem;
+    }
+    /* Ability header row */
+    .pn-ability-row {
+      display: flex;
+      align-items: center;
+      gap: 0.35rem;
+      margin-top: 0.25rem;
+      margin-bottom: 0.05rem;
+    }
+    .pn-ability-icon {
+      width: 18px;
+      height: 18px;
+      border-radius: 2px;
+      object-fit: cover;
+      flex-shrink: 0;
+    }
+    .pn-ability-name {
+      font-family: 'Rajdhani', sans-serif;
+      font-weight: 600;
+      font-size: 0.8rem;
+      color: var(--accent2);
+    }
+    .pn-buff    { color: #4ade80; }
+    .pn-nerf    { color: #f87171; }
     .pn-neutral { color: var(--muted); }
+    /* General section */
+    .pn-general-changes { padding: 0.5rem 0.9rem; display: flex; flex-direction: column; gap: 0.15rem; }
 
     /* Stream panel inside the right flex column */
     .all-widgets-right .stream-panel {
@@ -4415,47 +4471,101 @@
   }
 
   function parseLiquipediaPatch(tmp, version) {
-    const sections = [];
-    const generalNotes = [];
+    const result = { version, general: [], heroes: [], items: [], neutral_items: [] };
+    const main = tmp.querySelector('.mw-parser-output') || tmp;
+    const children = [...main.children];
 
-    // Liquipedia patch pages have h3/h4 headings per hero, with ul/li changes below
-    // Walk headings and collect bullets until next heading
-    const allEls = [...tmp.querySelectorAll('h2,h3,h4,ul,li,p')];
-    let currentHero = null;
-    let inHeroSection = false;
+    let section = null;
+    let currentEntry = null;
+    let awaitingName = false;
 
-    // Headings that are NOT heroes
-    const skipHeadings = /general|gameplay|items?|neutral|roshan|misc|creep|building|tower|courier|map|system|ui|interface|bug|fix|other/i;
+    const saveEntry = () => {
+      if (!currentEntry) return;
+      if (section === 'heroes')         result.heroes.push(currentEntry);
+      else if (section === 'items')     result.items.push(currentEntry);
+      else if (section === 'neutral_items') result.neutral_items.push(currentEntry);
+      currentEntry = null; awaitingName = false;
+    };
 
-    allEls.forEach(el => {
-      if (/^H[2-4]$/.test(el.tagName)) {
-        const text = el.textContent.replace(/\[.*?\]/g,'').trim();
-        if (skipHeadings.test(text)) {
-          // General / items section
-          if (currentHero) { sections.push(currentHero); currentHero = null; }
-          inHeroSection = false;
-        } else if (text.length > 1 && text.length < 40) {
-          if (currentHero) sections.push(currentHero);
-          currentHero = { name: text, changes: [] };
-          inHeroSection = true;
-        }
-      } else if (el.tagName === 'LI') {
-        const text = el.textContent.replace(/\[.*?\]/g,'').trim();
-        if (!text || text.length < 4) return;
-        if (inHeroSection && currentHero) {
-          currentHero.changes.push(text);
-        } else if (!inHeroSection) {
-          generalNotes.push(text);
+    // Recursively parse ul → array of change objects
+    const parseUl = (ul) => {
+      const out = [];
+      for (const li of ul.children) {
+        if (li.tagName !== 'LI') continue;
+        const abilityImg = li.querySelector('img.noprint');
+        const nestedUl   = li.querySelector(':scope > ul');
+
+        if (abilityImg) {
+          // Ability change: icon + name + nested sub-changes
+          const abilityLinks = [...li.querySelectorAll('a')].filter(a => !a.querySelector('img'));
+          const abilityName  = abilityLinks[0]?.textContent?.trim() || '';
+          const rawSrc = abilityImg.getAttribute('src') || '';
+          const imgSrc = rawSrc.startsWith('/') ? 'https://liquipedia.net' + rawSrc : rawSrc;
+          out.push({ type: 'ability', name: abilityName, img: imgSrc,
+                     changes: nestedUl ? parseUl(nestedUl) : [] });
+        } else {
+          // Direct change text (strip nested ul text)
+          let text = '';
+          for (const node of li.childNodes) {
+            if (node.nodeType === 3 /* TEXT */) text += node.textContent;
+            else if (node.tagName !== 'UL') text += node.textContent;
+          }
+          text = text.replace(/\[.*?\]/g,'').trim();
+          if (text) out.push({ type: 'change', text,
+                               sub: nestedUl ? parseUl(nestedUl) : [] });
         }
       }
-    });
-    if (currentHero) sections.push(currentHero);
-
-    return {
-      version,
-      sections: sections.filter(s => s.changes.length).slice(0, 100),
-      generalNotes: generalNotes.slice(0, 30)
+      return out;
     };
+
+    for (const child of children) {
+      // ── Section headings ──
+      if (child.classList.contains('mw-heading')) {
+        const h   = child.querySelector('h2,h3,h4');
+        if (!h) continue;
+        const id  = (h.id  || '').toLowerCase();
+        const txt = h.textContent.replace(/\[.*?\]/g,'').trim().toLowerCase();
+        saveEntry();
+        if      (id === 'general')                              section = 'general';
+        else if (id.includes('hero')   && id.includes('change')) section = 'heroes';
+        else if (id.includes('neutral') && id.includes('item'))  section = 'neutral_items';
+        else if (id.includes('item')   && id.includes('change')) section = 'items';
+        else                                                      section = 'other';
+        continue;
+      }
+
+      const style = child.getAttribute('style') || '';
+
+      // ── Hero / item portrait div (80 px wide inline-block) ──
+      if ((section === 'heroes' || section === 'items' || section === 'neutral_items')
+          && /width:\s*80px/.test(style)) {
+        saveEntry();
+        const img    = child.querySelector('img');
+        const rawSrc = img?.getAttribute('src') || '';
+        const imgSrc = rawSrc.startsWith('/') ? 'https://liquipedia.net' + rawSrc : rawSrc;
+        currentEntry = { name: '', img: imgSrc, changes: [] };
+        awaitingName = true;
+        continue;
+      }
+
+      // ── Hero / item name div (font-size:12pt) ──
+      if (awaitingName && currentEntry && /font-size:\s*12pt/.test(style)) {
+        currentEntry.name = child.textContent.replace(/\[.*?\]/g,'').trim();
+        awaitingName = false;
+        continue;
+      }
+
+      // ── Change lists ──
+      if (child.tagName === 'UL') {
+        if (currentEntry) {
+          currentEntry.changes.push(...parseUl(child));
+        } else if (section === 'general') {
+          parseUl(child).forEach(c => { if (c.type === 'change' && c.text) result.general.push(c.text); });
+        }
+      }
+    }
+    saveEntry();
+    return result;
   }
 
   function renderPatchNotes(version) {
@@ -4463,34 +4573,55 @@
     const body = document.getElementById('patchnotes-body');
     if (!data) { body.innerHTML = '<div class="empty-state">No data.</div>'; return; }
 
+    const cls = t => /increas|added|gain|now has|improv|\+\d/i.test(t) ? 'pn-buff'
+                   : /decreas|reduc|remov|no longer|lost|lower|-\d/i.test(t)  ? 'pn-nerf'
+                   : 'pn-neutral';
+
+    const renderChanges = (changes, depth = 0) => changes.map(c => {
+      if (!c) return '';
+      const pad = depth ? ` pn-change-sub` : '';
+      if (c.type === 'ability') {
+        return `<div class="pn-ability-row${depth ? ' pn-change-sub' : ''}">
+          ${c.img ? `<img class="pn-ability-icon" src="${c.img}" referrerpolicy="no-referrer" alt="">` : ''}
+          ${c.name ? `<span class="pn-ability-name">${escHtml(c.name)}</span>` : ''}
+        </div>
+        ${c.changes?.length ? renderChanges(c.changes, depth + 1) : ''}`;
+      }
+      if (c.type === 'change') {
+        return `<div class="pn-change-line ${cls(c.text)}${pad}">• ${escHtml(c.text)}</div>
+        ${c.sub?.length ? renderChanges(c.sub, depth + 1) : ''}`;
+      }
+      return '';
+    }).join('');
+
     let html = '<div class="pn-body">';
 
-    if (data.generalNotes?.length) {
-      html += `<div class="pn-section"><div class="pn-section-title">General</div>`;
-      data.generalNotes.forEach(n => {
-        const cls = /increas|buff|\+[0-9]/i.test(n) ? 'pn-buff'
-                  : /decreas|reduc|nerf|-[0-9]|remov|no longer/i.test(n) ? 'pn-nerf' : 'pn-neutral';
-        html += `<div class="pn-hero-row"><div class="pn-changes"><span class="${cls}">• ${escHtml(n)}</span></div></div>`;
-      });
-      html += '</div>';
+    if (data.general?.length) {
+      html += `<div class="pn-section"><div class="pn-section-title">General</div>
+        <div class="pn-general-changes">
+        ${data.general.map(g => `<div class="pn-change-line ${cls(g)}">• ${escHtml(g)}</div>`).join('')}
+        </div></div>`;
     }
 
-    if (data.sections?.length) {
-      html += `<div class="pn-section"><div class="pn-section-title">Heroes / Changes (${data.sections.length})</div>`;
-      data.sections.forEach(s => {
-        html += `<div class="pn-hero-row">
-          <div class="pn-hero-name">${escHtml(s.name)}</div>
-          <div class="pn-changes">${s.changes.map(c => {
-            const cls = /increas|buff|\+[0-9]|now has|added|gain/i.test(c) ? 'pn-buff'
-                      : /decreas|reduc|nerf|-[0-9]|remov|no longer|lost/i.test(c) ? 'pn-nerf' : 'pn-neutral';
-            return `<span class="${cls}">• ${escHtml(c)}</span>`;
-          }).join('<br>')}</div>
-        </div>`;
-      });
-      html += '</div>';
-    }
+    const renderSection = (label, entries) => {
+      if (!entries?.length) return '';
+      return `<div class="pn-section">
+        <div class="pn-section-title">${label} <span style="font-weight:400;">(${entries.length})</span></div>
+        ${entries.map(e => `<div class="pn-hero-card">
+          <div class="pn-hero-card-left">
+            ${e.img ? `<img class="pn-hero-portrait" src="${e.img}" referrerpolicy="no-referrer" alt="${escHtml(e.name)}">` : ''}
+            <div class="pn-hero-card-name">${escHtml(e.name)}</div>
+          </div>
+          <div class="pn-hero-card-changes">${renderChanges(e.changes)}</div>
+        </div>`).join('')}
+      </div>`;
+    };
 
-    if (!data.sections?.length && !data.generalNotes?.length) {
+    html += renderSection('Hero Changes', data.heroes);
+    html += renderSection('Item Changes', data.items);
+    html += renderSection('Neutral Item Changes', data.neutral_items);
+
+    if (!data.general?.length && !data.heroes?.length && !data.items?.length) {
       html += `<div class="empty-state" style="padding:1rem;">
         No patch data for ${version} on Liquipedia yet.<br>
         <a href="https://www.dota2.com/patchnotes/${version}" target="_blank" style="color:var(--accent2);">Open on dota2.com →</a>
@@ -4638,7 +4769,7 @@
   setTimeout(() => loadLiveStreams(), 500);
 
   // Version badge + changelog
-  const VERSION = '1.0.81';
+  const VERSION = '1.0.82';
   const LAST_UPDATE = '2026-04-11';
   const CHANGELOG = [
     { v: '1.0.70', date: '2026-04-10', notes: [

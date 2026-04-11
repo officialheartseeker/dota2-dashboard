@@ -4487,32 +4487,55 @@
       currentEntry = null; awaitingName = false;
     };
 
+    // Clean text from a li: removes imgs, strips nested ul, collapses whitespace
+    const cleanText = (li) => {
+      const clone = li.cloneNode(true);
+      clone.querySelectorAll('ul').forEach(u => u.remove());
+      clone.querySelectorAll('img').forEach(img => img.remove());
+      return clone.textContent.replace(/\[.*?\]/g,'').replace(/\s+/g,' ').trim();
+    };
+
     // Recursively parse ul → array of change objects
     const parseUl = (ul) => {
       const out = [];
       for (const li of ul.children) {
         if (li.tagName !== 'LI') continue;
-        const abilityImg = li.querySelector('img.noprint');
-        const nestedUl   = li.querySelector(':scope > ul');
+        const nestedUl = li.querySelector(':scope > ul');
 
-        if (abilityImg) {
-          // Ability change: icon + name + nested sub-changes
-          const abilityLinks = [...li.querySelectorAll('a')].filter(a => !a.querySelector('img'));
-          const abilityName  = abilityLinks[0]?.textContent?.trim() || '';
-          const rawSrc = abilityImg.getAttribute('src') || '';
-          const imgSrc = rawSrc.startsWith('/') ? 'https://liquipedia.net' + rawSrc : rawSrc;
-          out.push({ type: 'ability', name: abilityName, img: imgSrc,
+        // Detect grouped ability block:
+        // Must start with <a><img src*=abilityicon></a> followed by <a href*=#>AbilityName</a>
+        // (The img src must contain "abilityicon" — stat/attr icons have "allmode" or stat names)
+        let isAbilityBlock = false;
+        let abilityImgSrc = '', abilityName = '';
+
+        const firstMeaningful = [];
+        for (const node of li.childNodes) {
+          if (node.nodeType === 3 && !node.textContent.trim()) continue;
+          firstMeaningful.push(node);
+          if (firstMeaningful.length >= 2) break;
+        }
+
+        if (firstMeaningful.length >= 2) {
+          const f = firstMeaningful[0], s = firstMeaningful[1];
+          // First child: <a><img abilityicon></a>  OR bare <img.noprint abilityicon>
+          const fImg = (f.nodeName === 'A') ? f.querySelector('img') : (f.nodeName === 'IMG' ? f : null);
+          const fSrc = fImg?.getAttribute('src') || '';
+          // Second child: <a href="#ability">Name</a>
+          const sHref = (s.nodeName === 'A') ? (s.getAttribute('href') || '') : '';
+
+          if (fSrc.includes('abilityicon') && sHref.includes('#')) {
+            isAbilityBlock = true;
+            abilityImgSrc  = fSrc.startsWith('/') ? 'https://liquipedia.net' + fSrc : fSrc;
+            abilityName    = s.textContent.trim();
+          }
+        }
+
+        if (isAbilityBlock) {
+          out.push({ type: 'ability', name: abilityName, img: abilityImgSrc,
                      changes: nestedUl ? parseUl(nestedUl) : [] });
         } else {
-          // Direct change text (strip nested ul text)
-          let text = '';
-          for (const node of li.childNodes) {
-            if (node.nodeType === 3 /* TEXT */) text += node.textContent;
-            else if (node.tagName !== 'UL') text += node.textContent;
-          }
-          text = text.replace(/\[.*?\]/g,'').trim();
-          if (text) out.push({ type: 'change', text,
-                               sub: nestedUl ? parseUl(nestedUl) : [] });
+          const text = cleanText(li);
+          if (text) out.push({ type: 'change', text, sub: nestedUl ? parseUl(nestedUl) : [] });
         }
       }
       return out;
@@ -4769,7 +4792,7 @@
   setTimeout(() => loadLiveStreams(), 500);
 
   // Version badge + changelog
-  const VERSION = '1.0.82';
+  const VERSION = '1.0.83';
   const LAST_UPDATE = '2026-04-11';
   const CHANGELOG = [
     { v: '1.0.70', date: '2026-04-10', notes: [

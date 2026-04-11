@@ -4029,8 +4029,11 @@
   // Initialize Dota 2 view on page load
   switchDashboard('dota2');
 
+  // Pre-load rankings & transfers in background so the tab is ready instantly
+  setTimeout(() => { loadRankingsData(); loadTransfersData(); }, 1500);
+
   // Version badge + changelog
-  const VERSION = '1.0.77';
+  const VERSION = '1.0.78';
   const LAST_UPDATE = '2026-04-11';
   const CHANGELOG = [
     { v: '1.0.70', date: '2026-04-10', notes: [

@@ -1493,7 +1493,7 @@
     <div class="dashboard-nav">
       <button class="nav-btn active" data-view="dota2" onclick="switchDashboard('dota2')">Dota 2</button>
       <button class="nav-btn" data-view="rankings-transfers" onclick="switchDashboard('rankings-transfers')">Rankings &amp; Transfers</button>
-      <button class="nav-btn" data-view="calendar" onclick="switchDashboard('calendar')">Kalender</button>
+      <button class="nav-btn" data-view="calendar" onclick="switchDashboard('calendar')">Calendar</button>
       <button class="nav-btn" data-view="patchnotes" onclick="switchDashboard('patchnotes')">Patch Notes</button>
       <button class="nav-btn" data-view="all" onclick="switchDashboard('all')">All</button>
       <button class="nav-btn" data-view="custom" onclick="switchDashboard('custom')">Custom</button>
@@ -1668,17 +1668,17 @@
       <div class="widget-header">
         <div class="widget-title">
           <div class="logo-icon" style="background:#1a6b3c;">📅</div>
-          <div class="widget-label">Turneringskalender</div>
+          <div class="widget-label">Tournament Calendar</div>
         </div>
         <button onclick="loadCalendarData(true)" style="background:none;border:1px solid var(--border);color:var(--muted);padding:0.2rem 0.5rem;border-radius:3px;cursor:pointer;font-size:0.7rem;font-family:inherit;">↻ Refresh</button>
       </div>
       <div class="cal-filters" id="cal-filters">
-        <button class="cal-filter-btn active" data-tier="all" onclick="setCalFilter(this,'all')">Alla</button>
+        <button class="cal-filter-btn active" data-tier="all" onclick="setCalFilter(this,'all')">All</button>
         <button class="cal-filter-btn" data-tier="s" onclick="setCalFilter(this,'s')">S-Tier</button>
         <button class="cal-filter-btn" data-tier="a" onclick="setCalFilter(this,'a')">A-Tier</button>
         <button class="cal-filter-btn" data-tier="b" onclick="setCalFilter(this,'b')">B-Tier</button>
-        <button class="cal-filter-btn" data-tier="ongoing" onclick="setCalFilter(this,'ongoing')">Pågående</button>
-        <button class="cal-filter-btn" data-tier="upcoming" onclick="setCalFilter(this,'upcoming')">Kommande</button>
+        <button class="cal-filter-btn" data-tier="ongoing" onclick="setCalFilter(this,'ongoing')">Ongoing</button>
+        <button class="cal-filter-btn" data-tier="upcoming" onclick="setCalFilter(this,'upcoming')">Upcoming</button>
       </div>
       <div id="calendar-body">
         <div class="loading-state"><div class="loader"></div>Loading calendar…</div>
@@ -4264,71 +4264,62 @@
 
   function parseCalendar(tmp) {
     const events = [];
-    const today = new Date(); today.setHours(0,0,0,0);
 
-    // Parse wikitable rows — Liquipedia tournament portal tables
-    tmp.querySelectorAll('.wikitable tr, table.sortable tr').forEach(row => {
+    // Liquipedia Portal:Tournaments uses table2__row--body rows
+    // Columns: [tier, logo, name, date, prize, location, teams, winner, runner-up]
+    // Sections are marked by <h3 id="Upcoming">, <h3 id="Ongoing">, <h3 id="Most_Recent">
+    let currentSection = 'upcoming';
+
+    // Walk all elements in order to track section headings
+    const walk = (el) => {
+      for (const child of el.children) {
+        if (/^H[2-4]$/.test(child.tagName)) {
+          const id = (child.id || child.textContent || '').toLowerCase();
+          if (id.includes('ongoing'))       currentSection = 'ongoing';
+          else if (id.includes('upcoming')) currentSection = 'upcoming';
+          else if (id.includes('recent') || id.includes('completed')) currentSection = 'completed';
+        }
+        if (child.classList.contains('table2__row--body')) {
+          parseRow(child, currentSection);
+        }
+        walk(child);
+      }
+    };
+
+    const parseRow = (row, section) => {
+      if (section === 'completed') return;
       const cells = [...row.querySelectorAll('td')];
       if (cells.length < 3) return;
 
-      // Name: first cell with a link
-      const nameA = cells[0]?.querySelector('a') || cells[1]?.querySelector('a');
-      const name  = nameA?.textContent?.trim() || cells[0]?.textContent?.trim() || '';
-      if (!name || name.length < 3) return;
-      const href  = nameA?.getAttribute('href') || '';
-      const url   = href.startsWith('/') ? 'https://liquipedia.net' + href : href;
-
-      // Dates: look for cell with date-like text
-      let dateText = '';
-      let startDate = null, endDate = null;
-      for (const cell of cells) {
-        const t = cell.textContent.trim();
-        const m = t.match(/(\w+ \d{1,2}(?:–\d{1,2})?,?\s*\d{4}|\d{4}-\d{2}-\d{2})/);
-        if (m) { dateText = t; break; }
-      }
-      // Try to parse start/end from date spans
-      const dateSpans = row.querySelectorAll('[data-sort-value], .Date, time');
-      const timestamps = [...dateSpans].map(s => s.getAttribute('data-sort-value') || s.getAttribute('datetime') || '').filter(Boolean);
-      if (timestamps.length >= 2) {
-        startDate = new Date(timestamps[0]);
-        endDate   = new Date(timestamps[1]);
-      } else if (timestamps.length === 1) {
-        startDate = endDate = new Date(timestamps[0]);
-      }
-
-      // Prize pool
-      let prize = '';
-      for (const cell of cells) {
-        const t = cell.textContent.trim();
-        if (/\$[\d,]+|\d+\s*USD/.test(t)) { prize = t.replace(/\s+/g,' ').trim(); break; }
-      }
-
-      // Tier from row class or cell
+      // Col 0: Tier (link text: "Tier 1", "Tier 2", etc.)
+      const tierText = cells[0]?.textContent?.trim() || '';
       let tier = '';
-      const rowText = row.className + ' ' + [...cells].map(c => c.className).join(' ');
-      if (/s-tier|Stier|tier-1/i.test(rowText)) tier = 's';
-      else if (/a-tier|Atier|tier-2/i.test(rowText)) tier = 'a';
-      else if (/b-tier|Btier|tier-3/i.test(rowText)) tier = 'b';
-      else if (/c-tier|Ctier|tier-4/i.test(rowText)) tier = 'c';
-      // Also check explicit tier cells
-      for (const cell of cells) {
-        const t = cell.textContent.trim().toLowerCase();
-        if (t === 's-tier' || t === 's') { tier = 's'; break; }
-        if (t === 'a-tier' || t === 'a') { tier = 'a'; break; }
-        if (t === 'b-tier' || t === 'b') { tier = 'b'; break; }
-      }
+      if (/tier\s*1/i.test(tierText))      tier = 's';
+      else if (/tier\s*2/i.test(tierText)) tier = 'a';
+      else if (/tier\s*3/i.test(tierText)) tier = 'b';
+      else if (/tier\s*[4-9]/i.test(tierText)) tier = 'c';
 
-      // Status
-      let status = 'upcoming';
-      if (startDate && endDate) {
-        if (startDate <= today && today <= endDate) status = 'ongoing';
-        else if (endDate < today) status = 'completed';
-      }
+      // Col 2: Tournament name (class column__tournament)
+      const nameCell = row.querySelector('.column__tournament') || cells[2];
+      const nameA    = nameCell?.querySelector('a');
+      const name     = nameA?.textContent?.trim() || nameCell?.textContent?.trim() || '';
+      if (!name || name.length < 3) return;
+      const href = nameA?.getAttribute('href') || '';
+      const url  = href.startsWith('/') ? 'https://liquipedia.net' + href : href;
 
-      if (name && status !== 'completed') {
-        events.push({ name, url, dateText, startDate, endDate, prize, tier, status });
-      }
-    });
+      // Col 3: Date text (e.g. "Sep 29 – Oct 11, 2026")
+      const dateText = cells[3]?.textContent?.trim() || '';
+
+      // Col 4: Prize pool
+      const prize = cells[4]?.textContent?.trim() || '';
+
+      // Col 5: Location
+      const location = cells[5]?.textContent?.replace(/\s+/g,' ').trim() || '';
+
+      events.push({ name, url, dateText, prize, tier, location, status: section });
+    };
+
+    walk(tmp);
 
     // Deduplicate by name
     const seen = new Set();
@@ -4346,7 +4337,7 @@
     else if (f === 'b')   filtered = events.filter(e => e.tier === 'b');
 
     if (!filtered.length) {
-      body.innerHTML = '<div class="empty-state" style="padding:1rem;">Inga turneringar hittades.</div>';
+      body.innerHTML = '<div class="empty-state" style="padding:1rem;">No tournaments found.</div>';
       return;
     }
 
@@ -4374,56 +4365,21 @@
       html += '</div>';
     };
 
-    renderSection('Pågående', ongoing);
-    renderSection('Kommande', upcoming);
-    body.innerHTML = html || '<div class="empty-state" style="padding:1rem;">Inga turneringar hittades.</div>';
+    renderSection('Ongoing', ongoing);
+    renderSection('Upcoming', upcoming);
+    body.innerHTML = html || '<div class="empty-state" style="padding:1rem;">No tournaments found.</div>';
   }
 
-  // ── Patch Notes ──
+  // ── Patch Notes (via Liquipedia Version pages) ──
   let patchCache = {};
   let currentPatch = null;
+  // Known recent versions — shown as tabs (newest first)
+  const KNOWN_PATCHES = ['7.38c','7.38b','7.38','7.37e','7.37d','7.37'];
 
   function loadPatchNotes(force) {
     if (currentPatch && patchCache[currentPatch] && !force) { renderPatchNotes(currentPatch); return; }
-    document.getElementById('patchnotes-body').innerHTML = '<div class="loading-state"><div class="loader"></div>Loading patch notes…</div>';
-
-    // Fetch dota2.com/patches to get available versions
-    const patchListUrl = 'https://www.dota2.com/patches';
-    fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(patchListUrl), { cache: 'no-store' })
-      .then(r => { if (!r.ok) throw new Error(); return r.text(); })
-      .then(html => {
-        // Extract patch versions from the page
-        const versions = [];
-        const re = /"([0-9]+\.[0-9]+[a-z]?)"/g;
-        let m;
-        const tmp = document.createElement('div');
-        tmp.innerHTML = html;
-        // Look for patch links/buttons
-        tmp.querySelectorAll('a[href*="patchnotes"], [data-patch], .patch-version').forEach(el => {
-          const v = (el.getAttribute('data-patch') || el.textContent || '').trim().match(/\d+\.\d+[a-z]?/);
-          if (v) versions.push(v[0]);
-        });
-        // Fallback: regex scan
-        if (!versions.length) {
-          const re2 = /\b(7\.\d{2}[a-z]?)\b/g;
-          let m2;
-          while ((m2 = re2.exec(html)) !== null) {
-            if (!versions.includes(m2[1])) versions.push(m2[1]);
-          }
-          versions.sort((a,b) => b.localeCompare(a, undefined, {numeric:true}));
-        }
-
-        const top = versions.slice(0, 6);
-        if (!top.length) throw new Error('no versions');
-        renderPatchTabs(top);
-        fetchPatchVersion(top[0]);
-      })
-      .catch(() => {
-        // Fallback: try fetching a known recent patch directly
-        const fallbackVersion = '7.38';
-        renderPatchTabs([fallbackVersion]);
-        fetchPatchVersion(fallbackVersion);
-      });
+    renderPatchTabs(KNOWN_PATCHES);
+    fetchPatchVersion(KNOWN_PATCHES[0]);
   }
 
   function renderPatchTabs(versions) {
@@ -4442,120 +4398,91 @@
   };
 
   function fetchPatchVersion(version) {
-    document.getElementById('patchnotes-body').innerHTML = '<div class="loading-state"><div class="loader"></div>Loading ' + version + '…</div>';
-    const url = 'https://www.dota2.com/patchnotes/' + version;
-    fetch('https://api.allorigins.win/raw?url=' + encodeURIComponent(url))
-      .then(r => { if (!r.ok) throw new Error(); return r.text(); })
-      .then(html => {
-        const parsed = parsePatchHtml(html, version);
+    document.getElementById('patchnotes-body').innerHTML =
+      `<div class="loading-state"><div class="loader"></div>Loading ${version}…</div>`;
+    // Use Liquipedia Version page — reliable, same API we already use
+    liquipediaXhr('Version_' + version)
+      .then(tmp => {
+        const parsed = parseLiquipediaPatch(tmp, version);
         patchCache[version] = parsed;
         renderPatchNotes(version);
       })
       .catch(() => {
-        // Try corsproxy fallback
-        fetch('https://corsproxy.io/?' + encodeURIComponent('https://www.dota2.com/patchnotes/' + version))
-          .then(r => { if (!r.ok) throw new Error(); return r.text(); })
-          .then(html => {
-            const parsed = parsePatchHtml(html, version);
-            patchCache[version] = parsed;
-            renderPatchNotes(version);
-          })
-          .catch(() => {
-            document.getElementById('patchnotes-body').innerHTML =
-              `<div class="empty-state" style="padding:1rem;">Kunde inte ladda patch ${version}.<br>
-               <a href="https://www.dota2.com/patchnotes/${version}" target="_blank" style="color:var(--accent2);">Öppna på dota2.com →</a></div>`;
-          });
+        document.getElementById('patchnotes-body').innerHTML =
+          `<div class="empty-state" style="padding:1rem;">Could not load patch ${version}.<br>
+           <a href="https://www.dota2.com/patchnotes/${version}" target="_blank" style="color:var(--accent2);">Open on dota2.com →</a></div>`;
       });
   }
 
-  function parsePatchHtml(html, version) {
-    const tmp = document.createElement('div');
-    tmp.innerHTML = html;
-
+  function parseLiquipediaPatch(tmp, version) {
     const sections = [];
-    let generalNotes = [];
+    const generalNotes = [];
 
-    // Strategy 1: dota2.com's React-rendered patch note structure
-    // Heroes have class like "hero", items have "item", general has "general"
-    const heroSections = tmp.querySelectorAll('[class*="hero_entry"], [class*="HeroEntry"], .hero-entry');
-    if (heroSections.length) {
-      heroSections.forEach(sec => {
-        const nameEl = sec.querySelector('[class*="hero_name"], [class*="HeroName"], h2, h3');
-        const name = nameEl?.textContent?.trim() || '';
-        const changes = [...sec.querySelectorAll('[class*="ability"], [class*="Ability"], li, p')]
-          .map(el => el.textContent.trim()).filter(t => t.length > 3 && t.length < 200);
-        if (name && changes.length) sections.push({ type: 'hero', name, changes });
-      });
-    }
+    // Liquipedia patch pages have h3/h4 headings per hero, with ul/li changes below
+    // Walk headings and collect bullets until next heading
+    const allEls = [...tmp.querySelectorAll('h2,h3,h4,ul,li,p')];
+    let currentHero = null;
+    let inHeroSection = false;
 
-    // Strategy 2: Look for JSON embedded in the page (dota2.com embeds patch data as JS)
-    const scripts = [...tmp.querySelectorAll('script')];
-    for (const s of scripts) {
-      const t = s.textContent || '';
-      // Look for patch_notes JSON object
-      const m = t.match(/patch_notes\s*[:=]\s*(\{[\s\S]{50,}?\})\s*[,;]/);
-      if (m) {
-        try {
-          const data = JSON.parse(m[1]);
-          // Parse hero changes
-          if (data.heroes) {
-            Object.entries(data.heroes).forEach(([hero, changes]) => {
-              const changeList = Array.isArray(changes) ? changes : Object.values(changes).flat();
-              sections.push({ type: 'hero', name: hero.replace(/_/g,' '), changes: changeList.map(String).filter(c => c.length > 2) });
-            });
-          }
-          if (data.general) {
-            generalNotes = (Array.isArray(data.general) ? data.general : [data.general]).map(String);
-          }
-        } catch {}
-      }
-    }
+    // Headings that are NOT heroes
+    const skipHeadings = /general|gameplay|items?|neutral|roshan|misc|creep|building|tower|courier|map|system|ui|interface|bug|fix|other/i;
 
-    // Strategy 3: plain text fallback — extract lines that look like patch notes
-    if (!sections.length) {
-      const text = tmp.textContent;
-      const lines = text.split('\n').map(l => l.trim()).filter(l => l.length > 5);
-      let current = null;
-      lines.forEach(line => {
-        // Detect hero name (title case, 2-30 chars, no numbers)
-        if (/^[A-Z][a-z]+([ '][A-Z][a-z]+)*$/.test(line) && line.length < 30) {
-          if (current) sections.push(current);
-          current = { type: 'hero', name: line, changes: [] };
-        } else if (current && (line.startsWith('-') || line.startsWith('•') || line.match(/^[A-Z]/))) {
-          current.changes.push(line.replace(/^[-•]\s*/, ''));
-        } else if (!current && line.length > 10) {
-          generalNotes.push(line);
+    allEls.forEach(el => {
+      if (/^H[2-4]$/.test(el.tagName)) {
+        const text = el.textContent.replace(/\[.*?\]/g,'').trim();
+        if (skipHeadings.test(text)) {
+          // General / items section
+          if (currentHero) { sections.push(currentHero); currentHero = null; }
+          inHeroSection = false;
+        } else if (text.length > 1 && text.length < 40) {
+          if (currentHero) sections.push(currentHero);
+          currentHero = { name: text, changes: [] };
+          inHeroSection = true;
         }
-      });
-      if (current) sections.push(current);
-    }
+      } else if (el.tagName === 'LI') {
+        const text = el.textContent.replace(/\[.*?\]/g,'').trim();
+        if (!text || text.length < 4) return;
+        if (inHeroSection && currentHero) {
+          currentHero.changes.push(text);
+        } else if (!inHeroSection) {
+          generalNotes.push(text);
+        }
+      }
+    });
+    if (currentHero) sections.push(currentHero);
 
-    return { version, sections: sections.slice(0, 80), generalNotes: generalNotes.slice(0, 20) };
+    return {
+      version,
+      sections: sections.filter(s => s.changes.length).slice(0, 100),
+      generalNotes: generalNotes.slice(0, 30)
+    };
   }
 
   function renderPatchNotes(version) {
     const data = patchCache[version];
     const body = document.getElementById('patchnotes-body');
-    if (!data) { body.innerHTML = '<div class="empty-state">Ingen data.</div>'; return; }
+    if (!data) { body.innerHTML = '<div class="empty-state">No data.</div>'; return; }
 
     let html = '<div class="pn-body">';
 
     if (data.generalNotes?.length) {
       html += `<div class="pn-section"><div class="pn-section-title">General</div>`;
       data.generalNotes.forEach(n => {
-        html += `<div class="pn-hero-row"><div class="pn-changes">${escHtml(n)}</div></div>`;
+        const cls = /increas|buff|\+[0-9]/i.test(n) ? 'pn-buff'
+                  : /decreas|reduc|nerf|-[0-9]|remov|no longer/i.test(n) ? 'pn-nerf' : 'pn-neutral';
+        html += `<div class="pn-hero-row"><div class="pn-changes"><span class="${cls}">• ${escHtml(n)}</span></div></div>`;
       });
       html += '</div>';
     }
 
     if (data.sections?.length) {
-      html += `<div class="pn-section"><div class="pn-section-title">Heroes (${data.sections.filter(s=>s.type==='hero').length})</div>`;
-      data.sections.filter(s => s.type === 'hero').forEach(s => {
+      html += `<div class="pn-section"><div class="pn-section-title">Heroes / Changes (${data.sections.length})</div>`;
+      data.sections.forEach(s => {
         html += `<div class="pn-hero-row">
           <div class="pn-hero-name">${escHtml(s.name)}</div>
           <div class="pn-changes">${s.changes.map(c => {
-            const cls = /increas|buff|\+[0-9]|now|added/i.test(c) ? 'pn-buff'
-                      : /decreas|reduc|nerf|-[0-9]|remov|no longer/i.test(c) ? 'pn-nerf' : 'pn-neutral';
+            const cls = /increas|buff|\+[0-9]|now has|added|gain/i.test(c) ? 'pn-buff'
+                      : /decreas|reduc|nerf|-[0-9]|remov|no longer|lost/i.test(c) ? 'pn-nerf' : 'pn-neutral';
             return `<span class="${cls}">• ${escHtml(c)}</span>`;
           }).join('<br>')}</div>
         </div>`;
@@ -4565,8 +4492,8 @@
 
     if (!data.sections?.length && !data.generalNotes?.length) {
       html += `<div class="empty-state" style="padding:1rem;">
-        Patch notes för ${version} kunde inte parsas.<br>
-        <a href="https://www.dota2.com/patchnotes/${version}" target="_blank" style="color:var(--accent2);">Öppna på dota2.com →</a>
+        No patch data for ${version} on Liquipedia yet.<br>
+        <a href="https://www.dota2.com/patchnotes/${version}" target="_blank" style="color:var(--accent2);">Open on dota2.com →</a>
       </div>`;
     }
 
@@ -4626,11 +4553,11 @@
 
   function renderH2H(results, t1, t2, containerEl) {
     if (!results.length) {
-      containerEl.innerHTML = `<div style="color:var(--muted);font-size:0.75rem;padding:0.5rem 0;">Inga H2H-möten hittade.</div>`;
+      containerEl.innerHTML = `<div style="color:var(--muted);font-size:0.75rem;padding:0.5rem 0;">No H2H results found.</div>`;
       return;
     }
     let html = `<div style="font-family:'Rajdhani',sans-serif;font-size:0.8rem;margin-top:0.5rem;">
-      <div style="font-weight:700;color:var(--muted);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.3rem;">H2H – Senaste möten</div>`;
+      <div style="font-weight:700;color:var(--muted);font-size:0.7rem;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:0.3rem;">H2H – Recent Meetings</div>`;
     results.forEach(r => {
       html += `<div style="display:flex;gap:0.6rem;align-items:center;padding:0.2rem 0;border-bottom:1px solid rgba(255,255,255,0.04);">
         ${r.score ? `<span style="font-weight:700;color:var(--text);min-width:2.5rem;">${escHtml(r.score)}</span>` : ''}
@@ -4681,7 +4608,7 @@
     const body = document.getElementById('live-streams-body');
     if (!body) return;
     if (!streams.length) {
-      body.innerHTML = '<div class="empty-state" style="padding:0.6rem 0.8rem;font-size:0.78rem;">Inga Dota 2-streams live just nu.</div>';
+      body.innerHTML = '<div class="empty-state" style="padding:0.6rem 0.8rem;font-size:0.78rem;">No Dota 2 streams live right now.</div>';
       return;
     }
     body.innerHTML = streams.map(s => `
@@ -4711,7 +4638,7 @@
   setTimeout(() => loadLiveStreams(), 500);
 
   // Version badge + changelog
-  const VERSION = '1.0.80';
+  const VERSION = '1.0.81';
   const LAST_UPDATE = '2026-04-11';
   const CHANGELOG = [
     { v: '1.0.70', date: '2026-04-10', notes: [

@@ -4523,7 +4523,9 @@
           // Second child: <a href="#ability">Name</a>
           const sHref = (s.nodeName === 'A') ? (s.getAttribute('href') || '') : '';
 
-          if (fSrc.includes('abilityicon') && sHref.includes('#')) {
+          // Only a grouped ability block when there's ALSO a nested <ul>
+          // (inline ability refs like "Increased [icon] AbilityName cooldown…" have no nested ul)
+          if (fSrc.includes('abilityicon') && sHref.includes('#') && nestedUl) {
             isAbilityBlock = true;
             abilityImgSrc  = fSrc.startsWith('/') ? 'https://liquipedia.net' + fSrc : fSrc;
             abilityName    = s.textContent.trim();
@@ -4792,7 +4794,7 @@
   setTimeout(() => loadLiveStreams(), 500);
 
   // Version badge + changelog
-  const VERSION = '1.0.83';
+  const VERSION = '1.0.84';
   const LAST_UPDATE = '2026-04-11';
   const CHANGELOG = [
     { v: '1.0.70', date: '2026-04-10', notes: [

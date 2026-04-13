@@ -4747,11 +4747,17 @@
       await Promise.allSettled(KNOWN_DOTA_STREAMERS.slice(i, i + BATCH).map(async ch => {
         try {
           const uptime = await fetch(`https://decapi.me/twitch/uptime/${ch}`, { cache: 'no-store' }).then(r => r.text());
-          const live = !!uptime && !uptime.toLowerCase().includes('offline') && !uptime.toLowerCase().includes('error');
+          const lower = (uptime || '').toLowerCase();
+          const isOffline = lower.includes('offline');
+          const isContentLabel = lower.includes('failed to determine content classification');
+          const isError = !isContentLabel && lower.includes('error');
+          const live = !!uptime && !isOffline && !isError;
           if (live) {
             const viewers = await fetch(`https://decapi.me/twitch/viewercount/${ch}`, { cache: 'no-store' }).then(r => r.text()).catch(() => '0');
             const count = parseInt(viewers) || 0;
-            results.push({ channel: ch, viewers: count, uptime: uptime.trim() });
+            // If uptime is unusable due to content label, show "live" as uptime display
+            const uptimeDisplay = isContentLabel ? 'live' : uptime.trim();
+            results.push({ channel: ch, viewers: count, uptime: uptimeDisplay });
           }
         } catch {}
       }));
@@ -4795,7 +4801,7 @@
   setTimeout(() => loadLiveStreams(), 500);
 
   // Version badge + changelog
-  const VERSION = '1.0.86';
+  const VERSION = '1.0.87';
   const LAST_UPDATE = '2026-04-11';
   const CHANGELOG = [
     { v: '1.0.70', date: '2026-04-10', notes: [
